@@ -1,9 +1,9 @@
 // lib/server/dashboard.js
-import clientPromise from '../../lib/mongodb';
+import { connectToDatabase } from "@/app/lib/mongodb";
 
 export async function getDashboardData() {
   try {
-    const client = await clientPromise;
+    const client = await connectToDatabase;
     const db = client.db('property_management');
 
     // Get all collections
@@ -155,6 +155,7 @@ export async function getDashboardData() {
     };
   }
 }
+
 
 async function getUpcomingTasks(db, tenants, properties) {
   const tasks = [];
