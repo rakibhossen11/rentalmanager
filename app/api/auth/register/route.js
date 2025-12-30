@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { hashPassword, generateToken, setAuthCookie } from '@/lib/auth';
-import { connectToDatabase, ObjectId } from '@/lib/mongodb';
+import { hashPassword, generateToken, setAuthCookie } from '@/app/lib/auth';
+import { connectToDatabase, ObjectId } from '@/app/lib/mongodb';
 import crypto from 'crypto';
 
 export async function POST(request) {
