@@ -40,15 +40,27 @@ export function verifyToken(token) {
 }
 
 // Set auth cookie
-export function setAuthCookie(res, token) {
-    res.setHeader('Set-Cookie', serialize('token', token, {
+export function setAuthCookie(response, token) {
+    // Using NextResponse.cookies API instead of setHeader
+    response.cookies.set('token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: 60 * 60 * 24 * 7,
+        maxAge: 60 * 60 * 24 * 7, // 1 week
         path: '/',
-    }));
+    });
 }
+
+// Set auth cookie
+// export function setAuthCookie(res, token) {
+//     res.setHeader('Set-Cookie', serialize('token', token, {
+//         httpOnly: true,
+//         secure: process.env.NODE_ENV === 'production',
+//         sameSite: 'strict',
+//         maxAge: 60 * 60 * 24 * 7,
+//         path: '/',
+//     }));
+// }
 
 // Clear auth cookie
 export function clearAuthCookie(res) {
