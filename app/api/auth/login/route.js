@@ -60,7 +60,8 @@ export async function POST(request) {
                 plan: user.subscription.plan,
                 trialEnds: user.subscription.trialEnds,
                 avatar: user.avatar,
-                stats: user.stats
+                stats: user.stats,
+                role: user.role
             }
         });
         

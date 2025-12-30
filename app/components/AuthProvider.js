@@ -46,6 +46,7 @@ export default function AuthProvider({ children }) {
             
             if (res.ok) {
                 setUser(data.user);
+                console.log(data.user);
                 setIsAdmin(data.user?.role === 'admin' || data.user?.isAdmin);
                 toast.success('Welcome back!');
                 
