@@ -68,16 +68,16 @@ const SideNav = () => {
       icon: HomeIcon,
       description: 'Overview and analytics'
     },
-    {
-      name: 'Users',
-      href: '/users',
-      icon: UsersIcon,
-      description: 'Manage system users',
-      count: 45
-    },
+    // {
+    //   name: 'Users',
+    //   href: '/users',
+    //   icon: UsersIcon,
+    //   description: 'Manage system users',
+    //   count: 45
+    // },
     {
       name: 'Tenants',
-      href: '/tenants',
+      href: '/dashboard/tenants',
       icon: BuildingOfficeIcon,
       description: 'Tenant management',
       count: 128,
@@ -85,20 +85,20 @@ const SideNav = () => {
     },
     {
       name: 'Properties',
-      href: '/properties',
+      href: '/dashboard/properties',
       icon: HomeModernIcon,
       description: 'Property listings',
       count: 24
     },
     {
       name: 'Analytics',
-      href: '/analytics',
+      href: '/dashboard/analytics',
       icon: ChartBarIcon,
       description: 'Reports & insights'
     },
     {
       name: 'Settings',
-      href: '/settings',
+      href: '/dashboard/settings',
       icon: Cog6ToothIcon,
       description: 'System configuration'
     }
@@ -107,13 +107,13 @@ const SideNav = () => {
   const secondaryItems = [
     {
       name: 'Notifications',
-      href: '/notifications',
+      href: '/dashboard/notifications',
       icon: BellIcon,
       count: 3
     },
     {
       name: 'Support',
-      href: '/support',
+      href: '/dashboard/support',
       icon: QuestionMarkCircleIcon,
       description: 'Get help'
     }
@@ -122,25 +122,25 @@ const SideNav = () => {
   const quickActions = [
     {
       name: 'Add Tenant',
-      href: '/tenants/new',
+      href: '/dashboard/tenants/new',
       icon: UsersIcon,
       color: 'bg-blue-500 hover:bg-blue-600'
     },
     {
       name: 'Add Property',
-      href: '/properties/new',
+      href: '/dashboard/properties/new',
       icon: HomeModernIcon,
       color: 'bg-green-500 hover:bg-green-600'
     },
     {
       name: 'Collect Rent',
-      href: '/payments/collect',
+      href: '/dashboard/payments/collect',
       icon: WalletIcon,
       color: 'bg-purple-500 hover:bg-purple-600'
     },
     {
       name: 'Maintenance',
-      href: '/maintenance',
+      href: '/dashboard/maintenance',
       icon: Cog6ToothIcon,
       color: 'bg-orange-500 hover:bg-orange-600'
     }
