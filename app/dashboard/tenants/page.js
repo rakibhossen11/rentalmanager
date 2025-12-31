@@ -8,7 +8,7 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { 
     Plus, 
     Download, 
-    Filter, 
+    Filter,
     Search,
     MoreVertical,
     Users,

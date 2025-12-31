@@ -40,3 +40,31 @@ body {
   animation: slide-in 0.3s ease-out;
 }
 
+/* Add smooth transitions */
+* {
+  transition: background-color 0.2s ease;
+}
+
+/* Custom scrollbar for sidebar */
+aside::-webkit-scrollbar {
+  width: 6px;
+}
+
+aside::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+aside::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+aside::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Prevent text selection on interactive elements */
+button, a {
+  user-select: none;
+}
+
