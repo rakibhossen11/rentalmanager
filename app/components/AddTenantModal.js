@@ -1,98 +1,73 @@
 // app/components/AddTenantModal.jsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  X, 
-  User, 
-  Mail, 
-  Phone, 
-  Home, 
-  Calendar,
-  FileText,
-  DollarSign,
-  UserPlus,
-  CheckCircle
+  X, User, Mail, Phone, Home, Calendar,
+  DollarSign, FileText, UserPlus, CheckCircle,
+  MapPin, Briefcase, Shield, Building, CreditCard,
+  ChevronRight, ChevronLeft, Clock, AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AddTenantModal({ onClose, onSuccess, user }) {
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState(1);
+  const [availableProperties, setAvailableProperties] = useState([]);
+  const [propertiesLoading, setPropertiesLoading] = useState(true);
+  console.log(user);
+
+  // All form data in a compact structure
   const [formData, setFormData] = useState({
-    // Personal Information
-    fullName: '',
+    // Personal Info (Step 1)
+    name: '',
     email: '',
     phone: '',
-    emergencyContactName: '',
-    emergencyContactPhone: '',
-    
-    // Address Information
-    address: {
-      street: '',
-      city: '',
-      state: '',
-      zipCode: '',
-      country: 'US'
-    },
-    
-    // Lease Information
-    propertyId: '',
-    leaseStartDate: new Date().toISOString().split('T')[0],
-    leaseEndDate: '',
-    monthlyRent: '',
-    securityDeposit: '',
-    rentDueDay: 1,
-    
-    // Additional Details
     occupation: '',
-    employer: '',
-    monthlyIncome: '',
-    notes: '',
     
-    // Documents (to be uploaded separately)
-    documents: []
+    // Property Info (Step 2)
+    propertyId: '',
+    unit: '',
+    leaseStart: new Date().toISOString().split('T')[0],
+    leaseEnd: '',
+    rentDueDay: 5,
+    
+    // Financial Info (Step 3)
+    rent: '',
+    deposit: '',
+    income: '',
+    employer: '',
+    
+    // Additional (Step 4)
+    emergencyContact: '',
+    emergencyPhone: '',
+    notes: '',
+    status: 'active'
   });
 
-  const [step, setStep] = useState(1);
-  const [selectedProperty, setSelectedProperty] = useState(null);
-  const [availableProperties, setAvailableProperties] = useState([]);
-
-  // Fetch available properties on mount
-//   useState(() => {
-//     fetchAvailableProperties();
-//   }, []);
-
-//   const fetchAvailableProperties = async () => {
-//     try {
-//       const res = await fetch('/api/properties?status=active&available=true');
-//       if (res.ok) {
-//         const data = await res.json();
-//         setAvailableProperties(data);
-//       }
-//     } catch (error) {
-//       console.error('Error fetching properties:', error);
-//     }
-//   };
+  // Fetch properties on mount
+  useEffect(() => {
+    const fetchProperties = async () => {
+      try {
+        setPropertiesLoading(true);
+        const res = await fetch('/api/properties?status=active&limit=20');
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableProperties(data.properties || []);
+        }
+      } catch (error) {
+        console.error('Error fetching properties:', error);
+      } finally {
+        setPropertiesLoading(false);
+      }
+    };
+    
+    fetchProperties();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    // Handle nested objects (like address)
-    if (name.includes('.')) {
-      const [parent, child] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent],
-          [child]: value
-        }
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -100,28 +75,56 @@ export default function AddTenantModal({ onClose, onSuccess, user }) {
     setLoading(true);
 
     try {
-      // Validate required fields
-      if (!formData.fullName || !formData.email || !formData.propertyId) {
+      // Validate
+      if (!formData.name || !formData.email || !formData.propertyId || !formData.rent) {
         throw new Error('Please fill in all required fields');
       }
 
-      // Check user limits
+      // Check limits
       if (user?.subscription?.plan === 'free') {
         const tenantCountRes = await fetch('/api/tenants/count');
         if (tenantCountRes.ok) {
           const { count } = await tenantCountRes.json();
           if (count >= user?.limits?.tenants) {
-            throw new Error(`Free plan limited to ${user.limits.tenants} tenants. Please upgrade to add more.`);
+            throw new Error(`Free plan limited to ${user.limits.tenants} tenants. Upgrade to add more.`);
           }
         }
       }
 
+      // Prepare data for API
+      const tenantData = {
+        personalInfo: {
+          fullName: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          occupation: formData.occupation,
+          emergencyContact: {
+            name: formData.emergencyContact,
+            phone: formData.emergencyPhone
+          }
+        },
+        propertyId: formData.propertyId,
+        unit: formData.unit,
+        lease: {
+          startDate: formData.leaseStart,
+          endDate: formData.leaseEnd,
+          monthlyRent: parseFloat(formData.rent) || 0,
+          securityDeposit: parseFloat(formData.deposit) || 0,
+          dueDay: parseInt(formData.rentDueDay) || 5
+        },
+        financial: {
+          monthlyIncome: parseFloat(formData.income) || 0,
+          employer: formData.employer
+        },
+        notes: formData.notes,
+        status: formData.status
+      };
+
+      // Submit to API
       const res = await fetch('/api/tenants', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tenantData)
       });
 
       const data = await res.json();
@@ -130,7 +133,7 @@ export default function AddTenantModal({ onClose, onSuccess, user }) {
         throw new Error(data.error || 'Failed to add tenant');
       }
 
-      toast.success('Tenant added successfully!');
+      toast.success('✓ Tenant added successfully');
       onSuccess();
     } catch (error) {
       toast.error(error.message);
@@ -139,79 +142,80 @@ export default function AddTenantModal({ onClose, onSuccess, user }) {
     }
   };
 
+  // Steps configuration
   const steps = [
-    { number: 1, title: 'Personal Info', icon: User },
-    { number: 2, title: 'Property & Lease', icon: Home },
-    { number: 3, title: 'Financial Details', icon: DollarSign },
-    { number: 4, title: 'Review & Submit', icon: CheckCircle }
+    { number: 1, title: 'Personal', icon: User, color: 'blue' },
+    { number: 2, title: 'Property', icon: Home, color: 'green' },
+    { number: 3, title: 'Financial', icon: DollarSign, color: 'purple' },
+    { number: 4, title: 'Review', icon: CheckCircle, color: 'emerald' }
   ];
 
+  // Compact step rendering
   const renderStep = () => {
     switch (step) {
-      case 1:
+      case 1: // Personal Info
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <User className="w-5 h-5 mr-2" />
-              Personal Information
-            </h3>
-            
+          <div className="modal-overlay space-y-5">
+            <div className="text-center mb-2">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mb-3">
+                <User className="w-6 h-6 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
+              <p className="text-sm text-gray-500">Basic tenant details</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="text-sm font-medium text-gray-700 flex items-center">
+                  <User className="w-4 h-4 mr-2 text-gray-400" />
                   Full Name *
                 </label>
                 <input
                   type="text"
-                  name="fullName"
-                  value={formData.fullName}
+                  name="name"
+                  value={formData.name}
                   onChange={handleChange}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/90"
                   placeholder="John Doe"
                   required
                 />
               </div>
               
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Email Address *
+                <label className="text-sm font-medium text-gray-700 flex items-center">
+                  <Mail className="w-4 h-4 mr-2 text-gray-400" />
+                  Email *
                 </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="john@example.com"
-                    required
-                  />
-                </div>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/90"
+                  placeholder="john@example.com"
+                  required
+                />
               </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Phone Number *
+                <label className="text-sm font-medium text-gray-700 flex items-center">
+                  <Phone className="w-4 h-4 mr-2 text-gray-400" />
+                  Phone *
                 </label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="(555) 123-4567"
-                    required
-                  />
-                </div>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/90"
+                  placeholder="(555) 123-4567"
+                  required
+                />
               </div>
-              
+
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="text-sm font-medium text-gray-700 flex items-center">
+                  <Briefcase className="w-4 h-4 mr-2 text-gray-400" />
                   Occupation
                 </label>
                 <input
@@ -219,248 +223,363 @@ export default function AddTenantModal({ onClose, onSuccess, user }) {
                   name="occupation"
                   value={formData.occupation}
                   onChange={handleChange}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/90"
                   placeholder="Software Engineer"
                 />
               </div>
             </div>
-            
-            <div className="space-y-4 pt-4 border-t border-gray-200">
-              <h4 className="font-medium text-gray-700">Emergency Contact</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    name="emergencyContactName"
-                    value={formData.emergencyContactName}
-                    onChange={handleChange}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Emergency contact name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <input
-                    type="tel"
-                    name="emergencyContactPhone"
-                    value={formData.emergencyContactPhone}
-                    onChange={handleChange}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Emergency contact phone"
-                  />
-                </div>
+          </div>
+        );
+
+      case 2: // Property Info
+        return (
+          <div className="space-y-5">
+            <div className="text-center mb-2">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-3">
+                <Home className="w-6 h-6 text-green-600" />
               </div>
+              <h3 className="text-lg font-semibold text-gray-900">Property & Lease</h3>
+              <p className="text-sm text-gray-500">Where and when they'll live</p>
+            </div>
+
+            <div className="space-y-4">
+              {propertiesLoading ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600 mx-auto"></div>
+                  <p className="text-gray-500 text-sm mt-2">Loading properties...</p>
+                </div>
+              ) : availableProperties.length === 0 ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                  <div className="flex items-start">
+                    <AlertCircle className="w-5 h-5 text-yellow-600 mr-3 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-yellow-800 font-medium">No properties available</p>
+                      <p className="text-yellow-700 text-sm mt-1">Add a property first to assign tenants.</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700 flex items-center">
+                      <Building className="w-4 h-4 mr-2 text-gray-400" />
+                      Select Property *
+                    </label>
+                    <select
+                      name="propertyId"
+                      value={formData.propertyId}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
+                      required
+                    >
+                      <option value="">Choose a property...</option>
+                      {availableProperties.map(p => (
+                        <option key={p._id} value={p._id}>
+                          {p.name} • {p.address?.street}, {p.address?.city}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700 flex items-center">
+                        <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                        Unit #
+                      </label>
+                      <input
+                        type="text"
+                        name="unit"
+                        value={formData.unit}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
+                        placeholder="Apt 4B"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700 flex items-center">
+                        <Clock className="w-4 h-4 mr-2 text-gray-400" />
+                        Rent Due Day *
+                      </label>
+                      <select
+                        name="rentDueDay"
+                        value={formData.rentDueDay}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
+                      >
+                        {[1, 5, 10, 15, 20, 25].map(day => (
+                          <option key={day} value={day}>Day {day}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Lease Start *</label>
+                      <input
+                        type="date"
+                        name="leaseStart"
+                        value={formData.leaseStart}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Lease End</label>
+                      <input
+                        type="date"
+                        name="leaseEnd"
+                        value={formData.leaseEnd}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/90"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         );
 
-      case 2:
+      case 3: // Financial Info
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <Home className="w-5 h-5 mr-2" />
-              Property & Lease Details
-            </h3>
-            
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Select Property *
-              </label>
-              <select
-                name="propertyId"
-                value={formData.propertyId}
-                onChange={handleChange}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                required
-              >
-                <option value="">Choose a property</option>
-                {availableProperties.map(property => (
-                  <option key={property._id} value={property._id}>
-                    {property.name} - {property.address.street}, {property.address.city}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 flex items-center">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Lease Start Date *
-                </label>
-                <input
-                  type="date"
-                  name="leaseStartDate"
-                  value={formData.leaseStartDate}
-                  onChange={handleChange}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
+          <div className="space-y-5">
+            <div className="text-center mb-2">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-full mb-3">
+                <DollarSign className="w-6 h-6 text-purple-600" />
               </div>
-              
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Lease End Date
-                </label>
-                <input
-                  type="date"
-                  name="leaseEndDate"
-                  value={formData.leaseEndDate}
-                  onChange={handleChange}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Financial Details</h3>
+              <p className="text-sm text-gray-500">Rent and income information</p>
             </div>
-            
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Rent Due Day *
-              </label>
-              <select
-                name="rentDueDay"
-                value={formData.rentDueDay}
-                onChange={handleChange}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
-                  <option key={day} value={day}>
-                    {day}{day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'} of each month
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        );
 
-      case 3:
-        return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <DollarSign className="w-5 h-5 mr-2" />
-              Financial Details
-            </h3>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Monthly Rent ($) *
+                <label className="text-sm font-medium text-gray-700 flex items-center">
+                  <DollarSign className="w-4 h-4 mr-2 text-gray-400" />
+                  Monthly Rent *
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
                   <input
                     type="number"
-                    name="monthlyRent"
-                    value={formData.monthlyRent}
+                    name="rent"
+                    value={formData.rent}
                     onChange={handleChange}
-                    className="w-full pl-8 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-10 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white/90"
                     placeholder="1500.00"
                     step="0.01"
                     required
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Security Deposit ($)
+                <label className="text-sm font-medium text-gray-700 flex items-center">
+                  <Shield className="w-4 h-4 mr-2 text-gray-400" />
+                  Security Deposit
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
                   <input
                     type="number"
-                    name="securityDeposit"
-                    value={formData.securityDeposit}
+                    name="deposit"
+                    value={formData.deposit}
                     onChange={handleChange}
-                    className="w-full pl-8 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-10 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white/90"
                     placeholder="1500.00"
                     step="0.01"
                   />
                 </div>
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Monthly Income ($)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 flex items-center">
+                  <CreditCard className="w-4 h-4 mr-2 text-gray-400" />
+                  Monthly Income
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    name="income"
+                    value={formData.income}
+                    onChange={handleChange}
+                    className="w-full pl-10 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white/90"
+                    placeholder="5000.00"
+                    step="0.01"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.rent && formData.income 
+                    ? `${(parseFloat(formData.income) / parseFloat(formData.rent)).toFixed(1)}x rent ratio`
+                    : 'Recommended: 3x monthly rent'
+                  }
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Employer</label>
                 <input
-                  type="number"
-                  name="monthlyIncome"
-                  value={formData.monthlyIncome}
+                  type="text"
+                  name="employer"
+                  value={formData.employer}
                   onChange={handleChange}
-                  className="w-full pl-8 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="5000.00"
-                  step="0.01"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white/90"
+                  placeholder="Company Name"
                 />
               </div>
-              <p className="text-sm text-gray-500">
-                Typically should be 3x the monthly rent
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Employer
-              </label>
-              <input
-                type="text"
-                name="employer"
-                value={formData.employer}
-                onChange={handleChange}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Company Name"
-              />
             </div>
           </div>
         );
 
-      case 4:
+      case 4: // Review & Submit
+        const selectedProperty = availableProperties.find(p => p._id === formData.propertyId);
+        
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <CheckCircle className="w-5 h-5 mr-2" />
-              Review & Submit
-            </h3>
-            
+            <div className="text-center mb-2">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-full mb-3">
+                <CheckCircle className="w-6 h-6 text-emerald-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Review & Create</h3>
+              <p className="text-sm text-gray-500">Confirm all details are correct</p>
+            </div>
+
+            {/* Summary Cards */}
             <div className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-2">Summary</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Tenant Name:</span>
-                    <span className="font-medium">{formData.fullName}</span>
+              {/* Personal Summary */}
+              <div className="bg-blue-50/80 border border-blue-100 rounded-xl p-4">
+                <div className="flex items-center mb-2">
+                  <User className="w-4 h-4 text-blue-600 mr-2" />
+                  <h4 className="font-medium text-blue-900">Personal Details</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="text-blue-700">Name</div>
+                    <div className="font-medium text-gray-900">{formData.name || "—"}</div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Email:</span>
-                    <span className="font-medium">{formData.email}</span>
+                  <div>
+                    <div className="text-blue-700">Email</div>
+                    <div className="font-medium text-gray-900">{formData.email || "—"}</div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Monthly Rent:</span>
-                    <span className="font-medium">${formData.monthlyRent}</span>
+                  <div>
+                    <div className="text-blue-700">Phone</div>
+                    <div className="font-medium text-gray-900">{formData.phone || "—"}</div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Lease Start:</span>
-                    <span className="font-medium">
-                      {new Date(formData.leaseStartDate).toLocaleDateString()}
-                    </span>
+                  <div>
+                    <div className="text-blue-700">Occupation</div>
+                    <div className="font-medium text-gray-900">{formData.occupation || "—"}</div>
                   </div>
                 </div>
               </div>
-              
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 flex items-center">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Additional Notes
-                </label>
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleChange}
-                  rows="4"
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Any additional notes or special instructions..."
-                />
+
+              {/* Property & Lease Summary */}
+              <div className="bg-green-50/80 border border-green-100 rounded-xl p-4">
+                <div className="flex items-center mb-2">
+                  <Home className="w-4 h-4 text-green-600 mr-2" />
+                  <h4 className="font-medium text-green-900">Property & Lease</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="text-green-700">Property</div>
+                    <div className="font-medium text-gray-900">
+                      {selectedProperty?.name || "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-green-700">Unit</div>
+                    <div className="font-medium text-gray-900">{formData.unit || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-green-700">Lease Start</div>
+                    <div className="font-medium text-gray-900">
+                      {formData.leaseStart ? new Date(formData.leaseStart).toLocaleDateString() : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-green-700">Rent Due Day</div>
+                    <div className="font-medium text-gray-900">Day {formData.rentDueDay}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Summary */}
+              <div className="bg-purple-50/80 border border-purple-100 rounded-xl p-4">
+                <div className="flex items-center mb-2">
+                  <DollarSign className="w-4 h-4 text-purple-600 mr-2" />
+                  <h4 className="font-medium text-purple-900">Financial</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="text-purple-700">Monthly Rent</div>
+                    <div className="font-medium text-gray-900">
+                      {formData.rent ? `$${parseFloat(formData.rent).toLocaleString()}` : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-purple-700">Deposit</div>
+                    <div className="font-medium text-gray-900">
+                      {formData.deposit ? `$${parseFloat(formData.deposit).toLocaleString()}` : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-purple-700">Monthly Income</div>
+                    <div className="font-medium text-gray-900">
+                      {formData.income ? `$${parseFloat(formData.income).toLocaleString()}` : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-purple-700">Employer</div>
+                    <div className="font-medium text-gray-900">{formData.employer || "—"}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Notes */}
+              <div className="bg-gray-50/80 border border-gray-100 rounded-xl p-4">
+                <div className="flex items-center mb-2">
+                  <FileText className="w-4 h-4 text-gray-600 mr-2" />
+                  <h4 className="font-medium text-gray-900">Additional Information</h4>
+                </div>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Emergency Contact</label>
+                    <input
+                      type="text"
+                      name="emergencyContact"
+                      value={formData.emergencyContact}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white/90"
+                      placeholder="Contact name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Emergency Phone</label>
+                    <input
+                      type="tel"
+                      name="emergencyPhone"
+                      value={formData.emergencyPhone}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white/90"
+                      placeholder="(555) 555-5555"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Notes</label>
+                    <textarea
+                      name="notes"
+                      value={formData.notes}
+                      onChange={handleChange}
+                      rows="3"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white/90"
+                      placeholder="Any special instructions or notes..."
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -474,118 +593,128 @@ export default function AddTenantModal({ onClose, onSuccess, user }) {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen p-4">
-        {/* Backdrop */}
+        {/* Ultra-transparent backdrop - almost invisible */}
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+          className="fixed inset-0 bg-gradient-to-br from-gray-50/30 to-gray-100/30 backdrop-blur-[2px]"
           onClick={onClose}
         />
         
-        {/* Modal */}
-        <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+        {/* Transparent modal with glass effect */}
+        <div 
+          className="relative w-full max-w-xl bg-white/95 backdrop-blur-sm rounded-2xl 
+                     border border-gray-200/70 shadow-2xl overflow-hidden"
+          style={{
+            background: 'rgba(255, 255, 255, 0.97)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.08)'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Compact Header */}
+          <div className="sticky top-0 z-10 px-6 py-4 border-b border-gray-200/70 bg-white/95 backdrop-blur-sm">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-white">Add New Tenant</h2>
-                <p className="text-blue-100 text-sm">
-                  Step {step} of 4: {steps[step - 1]?.title}
-                </p>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  {steps.map(s => (
+                    <div
+                      key={s.number}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium
+                        ${step === s.number 
+                          ? `bg-${s.color}-600 text-white` 
+                          : step > s.number 
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-400'
+                        }`}
+                    >
+                      {step > s.number ? '✓' : s.number}
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Add Tenant</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Step {step}: {steps[step-1]?.title}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={onClose}
-                className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-gray-100/80 rounded-lg transition-colors"
+                aria-label="Close"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 text-gray-500" />
               </button>
-            </div>
-            
-            {/* Progress Steps */}
-            <div className="flex justify-between mt-6">
-              {steps.map((stepItem) => {
-                const Icon = stepItem.icon;
-                const isActive = stepItem.number === step;
-                const isCompleted = stepItem.number < step;
-                
-                return (
-                  <div key={stepItem.number} className="flex flex-col items-center">
-                    <div className={`
-                      flex items-center justify-center w-10 h-10 rounded-full mb-2
-                      ${isCompleted ? 'bg-green-500' : isActive ? 'bg-white' : 'bg-blue-400'}
-                      transition-colors
-                    `}>
-                      <Icon className={`
-                        w-5 h-5
-                        ${isCompleted ? 'text-white' : isActive ? 'text-blue-600' : 'text-white'}
-                      `} />
-                    </div>
-                    <span className={`
-                      text-xs font-medium
-                      ${isActive ? 'text-white' : 'text-blue-200'}
-                    `}>
-                      {stepItem.title}
-                    </span>
-                  </div>
-                );
-              })}
             </div>
           </div>
           
-          {/* Form Content */}
-          <div className="p-6 overflow-y-auto max-h-[60vh]">
-            <form onSubmit={handleSubmit}>
+          {/* Form Content - Compact */}
+          <div className="p-6 max-h-[calc(100vh-180px)] overflow-y-auto">
+            <form onSubmit={handleSubmit} className="space-y-4">
               {renderStep()}
             </form>
           </div>
           
-          {/* Footer Actions */}
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-            <div className="flex justify-between">
+          {/* Compact Footer */}
+          <div className="sticky bottom-0 px-6 py-4 border-t border-gray-200/70 bg-white/95 backdrop-blur-sm">
+            <div className="flex justify-between items-center">
               <div>
                 {step > 1 && (
                   <button
                     type="button"
                     onClick={() => setStep(step - 1)}
-                    className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="px-4 py-2.5 text-gray-700 hover:bg-gray-100/80 rounded-xl transition-colors flex items-center text-sm font-medium"
                   >
+                    <ChevronLeft className="w-4 h-4 mr-2" />
                     Back
                   </button>
                 )}
               </div>
               
               <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                
                 {step < 4 ? (
-                  <button
-                    type="button"
-                    onClick={() => setStep(step + 1)}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-                  >
-                    Next Step
-                    <span className="ml-2">→</span>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="px-4 py-2.5 text-gray-700 hover:bg-gray-100/80 rounded-xl transition-colors text-sm font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStep(step + 1)}
+                      disabled={
+                        (step === 1 && (!formData.name || !formData.email || !formData.phone)) ||
+                        (step === 2 && (!formData.propertyId || availableProperties.length === 0)) ||
+                        (step === 3 && !formData.rent)
+                      }
+                      className="px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 
+                               transition-colors flex items-center text-sm font-medium 
+                               disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Continue
+                      <ChevronRight className="w-4 h-4 ml-2" />
+                    </button>
+                  </>
                 ) : (
                   <button
                     type="button"
                     onClick={handleSubmit}
                     disabled={loading}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 
+                             transition-colors flex items-center text-sm font-medium 
+                             disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Adding Tenant...
+                        Creating...
                       </>
                     ) : (
                       <>
                         <UserPlus className="w-4 h-4 mr-2" />
-                        Add Tenant
+                        Create Tenant
                       </>
                     )}
                   </button>
@@ -598,468 +727,3 @@ export default function AddTenantModal({ onClose, onSuccess, user }) {
     </div>
   );
 }
-
-
-// 'use client';
-
-// import { useState } from 'react';
-// import { 
-//     X, 
-//     User, 
-//     Mail, 
-//     Phone, 
-//     MapPin,
-//     Calendar,
-//     DollarSign,
-//     FileText,
-//     AlertCircle,
-//     Building2,
-//     Shield,
-//     Camera
-// } from 'lucide-react';
-// import toast from 'react-hot-toast';
-
-// export default function AddTenantModal({ onClose, onSuccess, user }) {
-//     const [formData, setFormData] = useState({
-//         name: '',
-//         email: '',
-//         phone: '',
-//         alternatePhone: '',
-//         address: '',
-//         unitNumber: '',
-//         rentAmount: '',
-//         securityDeposit: '',
-//         petDeposit: '',
-//         rentDueDay: '1',
-//         leaseStart: '',
-//         leaseEnd: '',
-//         emergencyContact: '',
-//         emergencyPhone: '',
-//         notes: '',
-//         status: 'active'
-//     });
-    
-//     const [loading, setLoading] = useState(false);
-//     const [errors, setErrors] = useState({});
-
-//     const handleChange = (e) => {
-//         const { name, value } = e.target;
-//         setFormData(prev => ({ ...prev, [name]: value }));
-        
-//         // Clear error for this field
-//         if (errors[name]) {
-//             setErrors(prev => ({ ...prev, [name]: '' }));
-//         }
-//     };
-
-//     const validateForm = () => {
-//         const newErrors = {};
-        
-//         if (!formData.name.trim()) {
-//             newErrors.name = 'Name is required';
-//         }
-        
-//         if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-//             newErrors.email = 'Invalid email format';
-//         }
-        
-//         if (formData.rentAmount && isNaN(parseFloat(formData.rentAmount))) {
-//             newErrors.rentAmount = 'Rent amount must be a number';
-//         }
-        
-//         if (formData.rentDueDay && (parseInt(formData.rentDueDay) < 1 || parseInt(formData.rentDueDay) > 31)) {
-//             newErrors.rentDueDay = 'Rent due day must be between 1 and 31';
-//         }
-        
-//         return newErrors;
-//     };
-
-//     const handleSubmit = async (e) => {
-//         e.preventDefault();
-        
-//         const validationErrors = validateForm();
-//         if (Object.keys(validationErrors).length > 0) {
-//             setErrors(validationErrors);
-//             return;
-//         }
-        
-//         setLoading(true);
-        
-//         try {
-//             const res = await fetch('/api/tenants', {
-//                 method: 'POST',
-//                 headers: { 'Content-Type': 'application/json' },
-//                 body: JSON.stringify(formData)
-//             });
-            
-//             const data = await res.json();
-            
-//             if (res.ok) {
-//                 toast.success('Tenant added successfully!');
-//                 onSuccess();
-//             } else {
-//                 throw new Error(data.error || 'Failed to add tenant');
-//             }
-//         } catch (error) {
-//             toast.error(error.message);
-//         } finally {
-//             setLoading(false);
-//         }
-//     };
-
-//     return (
-//         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-//             <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-//                 {/* Header */}
-//                 <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-//                     <div>
-//                         <h2 className="text-xl font-bold text-gray-900">Add New Tenant</h2>
-//                         <p className="text-sm text-gray-600">Fill in the tenant's information</p>
-//                     </div>
-//                     <button
-//                         onClick={onClose}
-//                         className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-//                     >
-//                         <X className="w-5 h-5" />
-//                     </button>
-//                 </div>
-                
-//                 {/* Form */}
-//                 <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(90vh-120px)] p-6">
-//                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-//                         {/* Personal Information */}
-//                         <div className="space-y-4">
-//                             <h3 className="font-semibold text-gray-900 flex items-center">
-//                                 <User className="w-4 h-4 mr-2" />
-//                                 Personal Information
-//                             </h3>
-                            
-//                             <div>
-//                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                     Full Name *
-//                                 </label>
-//                                 <input
-//                                     type="text"
-//                                     name="name"
-//                                     value={formData.name}
-//                                     onChange={handleChange}
-//                                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-//                                         errors.name ? 'border-red-300' : 'border-gray-300'
-//                                     }`}
-//                                     placeholder="John Doe"
-//                                 />
-//                                 {errors.name && (
-//                                     <p className="mt-1 text-sm text-red-600">{errors.name}</p>
-//                                 )}
-//                             </div>
-                            
-//                             <div>
-//                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                     Email Address
-//                                 </label>
-//                                 <div className="relative">
-//                                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-//                                     <input
-//                                         type="email"
-//                                         name="email"
-//                                         value={formData.email}
-//                                         onChange={handleChange}
-//                                         className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-//                                             errors.email ? 'border-red-300' : 'border-gray-300'
-//                                         }`}
-//                                         placeholder="john@example.com"
-//                                     />
-//                                 </div>
-//                                 {errors.email && (
-//                                     <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-//                                 )}
-//                             </div>
-                            
-//                             <div>
-//                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                     Phone Number
-//                                 </label>
-//                                 <div className="relative">
-//                                     <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-//                                     <input
-//                                         type="tel"
-//                                         name="phone"
-//                                         value={formData.phone}
-//                                         onChange={handleChange}
-//                                         className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                         placeholder="(555) 123-4567"
-//                                     />
-//                                 </div>
-//                             </div>
-                            
-//                             <div>
-//                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                     Alternate Phone
-//                                 </label>
-//                                 <input
-//                                     type="tel"
-//                                     name="alternatePhone"
-//                                     value={formData.alternatePhone}
-//                                     onChange={handleChange}
-//                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                     placeholder="(555) 987-6543"
-//                                 />
-//                             </div>
-//                         </div>
-                        
-//                         {/* Property Information */}
-//                         <div className="space-y-4">
-//                             <h3 className="font-semibold text-gray-900 flex items-center">
-//                                 <Building2 className="w-4 h-4 mr-2" />
-//                                 Property Information
-//                             </h3>
-                            
-//                             <div>
-//                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                     Address
-//                                 </label>
-//                                 <div className="relative">
-//                                     <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-//                                     <input
-//                                         type="text"
-//                                         name="address"
-//                                         value={formData.address}
-//                                         onChange={handleChange}
-//                                         className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                         placeholder="123 Main St, Apt 4B"
-//                                     />
-//                                 </div>
-//                             </div>
-                            
-//                             <div>
-//                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                     Unit Number
-//                                 </label>
-//                                 <input
-//                                     type="text"
-//                                     name="unitNumber"
-//                                     value={formData.unitNumber}
-//                                     onChange={handleChange}
-//                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                     placeholder="4B"
-//                                 />
-//                             </div>
-                            
-//                             <div className="grid grid-cols-2 gap-4">
-//                                 <div>
-//                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                         Monthly Rent
-//                                     </label>
-//                                     <div className="relative">
-//                                         <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-//                                         <input
-//                                             type="number"
-//                                             name="rentAmount"
-//                                             value={formData.rentAmount}
-//                                             onChange={handleChange}
-//                                             className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-//                                                 errors.rentAmount ? 'border-red-300' : 'border-gray-300'
-//                                             }`}
-//                                             placeholder="2500"
-//                                             step="0.01"
-//                                         />
-//                                     </div>
-//                                     {errors.rentAmount && (
-//                                         <p className="mt-1 text-sm text-red-600">{errors.rentAmount}</p>
-//                                     )}
-//                                 </div>
-                                
-//                                 <div>
-//                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                         Rent Due Day
-//                                     </label>
-//                                     <select
-//                                         name="rentDueDay"
-//                                         value={formData.rentDueDay}
-//                                         onChange={handleChange}
-//                                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-//                                             errors.rentDueDay ? 'border-red-300' : 'border-gray-300'
-//                                         }`}
-//                                     >
-//                                         {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-//                                             <option key={day} value={day}>
-//                                                 Day {day}
-//                                             </option>
-//                                         ))}
-//                                     </select>
-//                                     {errors.rentDueDay && (
-//                                         <p className="mt-1 text-sm text-red-600">{errors.rentDueDay}</p>
-//                                     )}
-//                                 </div>
-//                             </div>
-                            
-//                             <div className="grid grid-cols-2 gap-4">
-//                                 <div>
-//                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                         Security Deposit
-//                                     </label>
-//                                     <div className="relative">
-//                                         <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-//                                         <input
-//                                             type="number"
-//                                             name="securityDeposit"
-//                                             value={formData.securityDeposit}
-//                                             onChange={handleChange}
-//                                             className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                             placeholder="2500"
-//                                             step="0.01"
-//                                         />
-//                                     </div>
-//                                 </div>
-                                
-//                                 <div>
-//                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                         Pet Deposit
-//                                     </label>
-//                                     <input
-//                                         type="number"
-//                                         name="petDeposit"
-//                                         value={formData.petDeposit}
-//                                         onChange={handleChange}
-//                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                         placeholder="500"
-//                                         step="0.01"
-//                                     />
-//                                 </div>
-//                             </div>
-//                         </div>
-                        
-//                         {/* Lease Information */}
-//                         <div className="space-y-4">
-//                             <h3 className="font-semibold text-gray-900 flex items-center">
-//                                 <Calendar className="w-4 h-4 mr-2" />
-//                                 Lease Information
-//                             </h3>
-                            
-//                             <div className="grid grid-cols-2 gap-4">
-//                                 <div>
-//                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                         Lease Start Date
-//                                     </label>
-//                                     <input
-//                                         type="date"
-//                                         name="leaseStart"
-//                                         value={formData.leaseStart}
-//                                         onChange={handleChange}
-//                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                     />
-//                                 </div>
-                                
-//                                 <div>
-//                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                         Lease End Date
-//                                     </label>
-//                                     <input
-//                                         type="date"
-//                                         name="leaseEnd"
-//                                         value={formData.leaseEnd}
-//                                         onChange={handleChange}
-//                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                     />
-//                                 </div>
-//                             </div>
-                            
-//                             <div>
-//                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                     Status
-//                                 </label>
-//                                 <select
-//                                     name="status"
-//                                     value={formData.status}
-//                                     onChange={handleChange}
-//                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                 >
-//                                     <option value="active">Active</option>
-//                                     <option value="inactive">Inactive</option>
-//                                     <option value="pending">Pending</option>
-//                                     <option value="past">Past</option>
-//                                 </select>
-//                             </div>
-//                         </div>
-                        
-//                         {/* Emergency Contact & Notes */}
-//                         <div className="space-y-4">
-//                             <h3 className="font-semibold text-gray-900 flex items-center">
-//                                 <AlertCircle className="w-4 h-4 mr-2" />
-//                                 Additional Information
-//                             </h3>
-                            
-//                             <div>
-//                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                     Emergency Contact Name
-//                                 </label>
-//                                 <input
-//                                     type="text"
-//                                     name="emergencyContact"
-//                                     value={formData.emergencyContact}
-//                                     onChange={handleChange}
-//                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                     placeholder="Jane Smith"
-//                                 />
-//                             </div>
-                            
-//                             <div>
-//                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                     Emergency Contact Phone
-//                                 </label>
-//                                 <input
-//                                     type="tel"
-//                                     name="emergencyPhone"
-//                                     value={formData.emergencyPhone}
-//                                     onChange={handleChange}
-//                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                     placeholder="(555) 555-5555"
-//                                 />
-//                             </div>
-                            
-//                             <div>
-//                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                                     Notes
-//                                 </label>
-//                                 <textarea
-//                                     name="notes"
-//                                     value={formData.notes}
-//                                     onChange={handleChange}
-//                                     rows="3"
-//                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                                     placeholder="Any additional notes about this tenant..."
-//                                 />
-//                             </div>
-//                         </div>
-//                     </div>
-                    
-//                     {/* Actions */}
-//                     <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end gap-3">
-//                         <button
-//                             type="button"
-//                             onClick={onClose}
-//                             className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-//                         >
-//                             Cancel
-//                         </button>
-//                         <button
-//                             type="submit"
-//                             disabled={loading}
-//                             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-//                         >
-//                             {loading ? (
-//                                 <span className="flex items-center">
-//                                     <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-//                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-//                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-//                                     </svg>
-//                                     Adding Tenant...
-//                                 </span>
-//                             ) : 'Add Tenant'}
-//                         </button>
-//                     </div>
-//                 </form>
-//             </div>
-//         </div>
-//     );
-// }
