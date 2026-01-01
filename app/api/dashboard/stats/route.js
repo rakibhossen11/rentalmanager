@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/app/lib/auth';
+import { getSession } from '@/app/lib/auth';
 import { connectToDatabase, ObjectId } from '@/app/lib/mongodb';
 
 export async function GET(request) {
     try {
-        const { companyId } = await requireAuth(request);
+        const { companyId } = await getSession(request);
         
         const { db } = await connectToDatabase();
         

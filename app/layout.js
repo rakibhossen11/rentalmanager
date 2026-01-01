@@ -5,7 +5,6 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import AuthProvider from './components/AuthProvider';
 import SideNav from './components/SideNav';
-import { ToastProvider } from './contexts/ToastContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -22,7 +21,6 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-          <ToastProvider>
           <div className="flex min-h-screen bg-gray-50">
             {/* <SideNav /> */}
             {/* <Navbar /> */}
@@ -31,7 +29,6 @@ export default function RootLayout({ children }) {
             </main>
             {/* <Footer /> */}
           </div>
-          </ToastProvider>
         </AuthProvider>
         <Toaster 
           position="top-right"
