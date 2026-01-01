@@ -15,67 +15,67 @@ export default function AuthProvider({ children }) {
     console.log(user);
 
     const checkSession = async () => {
-    try {
-      const res = await fetch('/api/auth/session');
-      const data = await res.json();
-      console.log(data);
-      setUser(data.session || null);
-    } catch (error) {
-      console.error('Session check failed:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-    // Load persisted user data from localStorage on initial render
-    useEffect(() => {
-        const savedUser = localStorage.getItem('user');
-        if (savedUser) {
-            try {
-                const parsedUser = JSON.parse(savedUser);
-                setUser(parsedUser);
-                setIsAdmin(parsedUser?.role === 'admin' || parsedUser?.isAdmin);
-            } catch (error) {
-                localStorage.removeItem('user');
-            }
-        }
-        checkAuth();
-    }, []);
-
-    // Save user to localStorage whenever it changes
-    useEffect(() => {
-        if (user) {
-            localStorage.setItem('user', JSON.stringify(user));
-        } else {
-            localStorage.removeItem('user');
-        }
-    }, [user]);
-
-    // Check authentication status with server
-    const checkAuth = async () => {
         try {
             const res = await fetch('/api/auth/me');
-            if (res.ok) {
-                const data = await res.json();
-                if (data.user) {
-                    setUser(data.user);
-                    setIsAdmin(data.user?.role === 'admin' || data.user?.isAdmin);
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                }
-            } else {
-                // If server says not authenticated, clear local state
-                setUser(null);
-                setIsAdmin(false);
-                localStorage.removeItem('user');
-            }
+            const data = await res.json();
+            console.log(data);
+            setUser(data.data);
         } catch (error) {
-            console.error('Auth check failed:', error);
-            // Keep the localStorage data on network error
-            // User will be logged out on next successful check
+            console.error('Session check failed:', error);
         } finally {
             setLoading(false);
         }
     };
+
+    // Load persisted user data from localStorage on initial render
+    // useEffect(() => {
+    //     const savedUser = localStorage.getItem('user');
+    //     if (savedUser) {
+    //         try {
+    //             const parsedUser = JSON.parse(savedUser);
+    //             setUser(parsedUser);
+    //             setIsAdmin(parsedUser?.role === 'admin' || parsedUser?.isAdmin);
+    //         } catch (error) {
+    //             localStorage.removeItem('user');
+    //         }
+    //     }
+    //     checkAuth();
+    // }, []);
+
+    // // Save user to localStorage whenever it changes
+    // useEffect(() => {
+    //     if (user) {
+    //         localStorage.setItem('user', JSON.stringify(user));
+    //     } else {
+    //         localStorage.removeItem('user');
+    //     }
+    // }, [user]);
+
+    // Check authentication status with server
+    // const checkAuth = async () => {
+    //     try {
+    //         const res = await fetch('/api/auth/me');
+    //         if (res.ok) {
+    //             const data = await res.json();
+    //             if (data.user) {
+    //                 setUser(data.user);
+    //                 setIsAdmin(data.user?.role === 'admin' || data.user?.isAdmin);
+    //                 localStorage.setItem('user', JSON.stringify(data.user));
+    //             }
+    //         } else {
+    //             // If server says not authenticated, clear local state
+    //             setUser(null);
+    //             setIsAdmin(false);
+    //             localStorage.removeItem('user');
+    //         }
+    //     } catch (error) {
+    //         console.error('Auth check failed:', error);
+    //         // Keep the localStorage data on network error
+    //         // User will be logged out on next successful check
+    //     } finally {
+    //         setLoading(false);
+    //     }
+    // };
 
     // Login function
     const login = async (email, password) => {
@@ -87,20 +87,20 @@ export default function AuthProvider({ children }) {
             });
 
             const data = await res.json();
-            
+
             if (res.ok) {
                 setUser(data.user);
                 // setIsAdmin(data.user?.role === 'admin' || data.user?.isAdmin);
                 // localStorage.setItem('user', JSON.stringify(data.user));
                 toast.success('Welcome back!');
-                
+
                 // Redirect based on role
                 // if (data.user?.role === 'admin' || data.user?.isAdmin) {
                 //     router.push('/admin/dashboard');
                 // } else {
                 //     router.push('/dashboard');
                 // }
-                
+
                 return { success: true };
             } else {
                 toast.error(data.error || 'Login failed');
@@ -122,7 +122,7 @@ export default function AuthProvider({ children }) {
             });
 
             const data = await res.json();
-            
+
             if (res.ok) {
                 setUser(data.user);
                 setIsAdmin(false);
@@ -157,26 +157,30 @@ export default function AuthProvider({ children }) {
     };
 
     // Update user data
-    const updateUser = (updates) => {
-        const updatedUser = { ...user, ...updates };
-        setUser(updatedUser);
-        setIsAdmin(updatedUser?.role === 'admin' || updatedUser?.isAdmin);
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-    };
+    // const updateUser = (updates) => {
+    //     const updatedUser = { ...user, ...updates };
+    //     setUser(updatedUser);
+    //     setIsAdmin(updatedUser?.role === 'admin' || updatedUser?.isAdmin);
+    //     localStorage.setItem('user', JSON.stringify(updatedUser));
+    // };
 
     // Check if user has specific role
-    const hasRole = (role) => {
-        if (!user) return false;
-        return user.role === role || user.isAdmin;
-    };
+    // const hasRole = (role) => {
+    //     if (!user) return false;
+    //     return user.role === role || user.isAdmin;
+    // };
 
     // Check if user has permission
-    const hasPermission = (permission) => {
-        if (!user) return false;
-        if (user.isAdmin) return true;
-        if (user.permissions && user.permissions.includes('all')) return true;
-        return user.permissions && user.permissions.includes(permission);
-    };
+    // const hasPermission = (permission) => {
+    //     if (!user) return false;
+    //     if (user.isAdmin) return true;
+    //     if (user.permissions && user.permissions.includes('all')) return true;
+    //     return user.permissions && user.permissions.includes(permission);
+    // };
+
+    useEffect(() => {
+        checkSession();
+    }, []);
 
     return (
         <AuthContext.Provider value={{
@@ -186,10 +190,11 @@ export default function AuthProvider({ children }) {
             login,
             register,
             logout,
-            updateUser,
-            checkAuth,
-            hasRole,
-            hasPermission
+            // updateUser,
+            // checkAuth,
+            // hasRole,
+            // hasPermission,
+            checkSession
         }}>
             {children}
         </AuthContext.Provider>

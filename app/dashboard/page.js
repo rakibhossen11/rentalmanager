@@ -25,6 +25,7 @@ import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
     const { user, updateUser } = useAuth();
+    console.log('in dashboard page',user);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [recentActivities, setRecentActivities] = useState([]);
