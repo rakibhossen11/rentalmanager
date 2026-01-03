@@ -1,4 +1,4 @@
-// app/dashboard/properties/page.js
+// app/dashboard/properties/page.js (Updated)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,20 +6,12 @@ import Link from 'next/link';
 import { useAuth } from '@/app/components/AuthProvider';
 import PropertyCard from '@/app/components/PropertyCard';
 import AddPropertyModal from '@/app/components/AddPropertyModal';
+import PropertyDetailsModal from './components/PropertyDetailsModal';
+import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { 
-  Plus, 
-  Search, 
-  Filter,
-  MapPin,
-  Home,
-  Building,
-  DollarSign,
-  Users,
-  Grid,
-  List,
-  Download,
-  MoreVertical
+  Plus, Search, Grid, List, Home,
+  DollarSign, Users, Filter, MapPin
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -27,41 +19,35 @@ export default function PropertiesPage() {
   const { user } = useAuth();
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
     status: 'all',
-    type: 'all',
-    minPrice: '',
-    maxPrice: ''
+    type: 'all'
   });
   const [showAddModal, setShowAddModal] = useState(false);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 12,
-    total: 0,
-    pages: 1
-  });
+  const [selectedProperty, setSelectedProperty] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     fetchProperties();
-  }, [pagination.page, filters.status, filters.type]);
+  }, [filters.status, filters.type]);
 
   const fetchProperties = async () => {
     try {
       setLoading(true);
       const queryParams = new URLSearchParams({
-        page: pagination.page,
-        limit: pagination.limit,
         status: filters.status,
-        type: filters.type
+        type: filters.type,
+        limit: 50
       }).toString();
       
       const res = await fetch(`/api/properties?${queryParams}`);
       if (res.ok) {
         const data = await res.json();
         setProperties(data.properties || []);
-        setPagination(data.pagination || pagination);
       } else {
         throw new Error('Failed to fetch properties');
       }
@@ -73,26 +59,51 @@ export default function PropertiesPage() {
     }
   };
 
-  const handleDelete = async (propertyId) => {
-    if (!confirm('Are you sure you want to delete this property? This will also remove all associated tenants.')) {
-      return;
-    }
+  const handleViewDetails = (property) => {
+    setSelectedProperty(property);
+    setShowDetailsModal(true);
+  };
+
+  const handleDeleteClick = (propertyId) => {
+    const property = properties.find(p => p._id === propertyId);
+    setSelectedProperty(property);
+    setDeletingId(propertyId);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingId) return;
 
     try {
-      const res = await fetch(`/api/properties/${propertyId}`, {
+      setLoading(true);
+      const res = await fetch(`/api/properties/${deletingId}`, {
         method: 'DELETE',
       });
 
       if (res.ok) {
         toast.success('Property deleted successfully');
-        fetchProperties();
+        // Remove from local state
+        setProperties(prev => prev.filter(p => p._id !== deletingId));
       } else {
         const data = await res.json();
         throw new Error(data.error || 'Delete failed');
       }
     } catch (error) {
       toast.error(error.message);
+    } finally {
+      setLoading(false);
+      setShowDeleteModal(false);
+      setDeletingId(null);
+      setSelectedProperty(null);
     }
+  };
+
+  const handlePropertyUpdate = (updatedProperty) => {
+    // Update in local state
+    setProperties(prev =>
+      prev.map(p => p._id === updatedProperty._id ? updatedProperty : p)
+    );
+    toast.success('Property updated successfully');
   };
 
   const filteredProperties = properties.filter(property => {
@@ -109,16 +120,10 @@ export default function PropertiesPage() {
     active: properties.filter(p => p.status === 'active').length,
     vacant: properties.filter(p => p.status === 'vacant').length,
     totalValue: properties.reduce((sum, p) => sum + (p.financial?.currentValue || 0), 0),
-    totalRevenue: properties.reduce((sum, p) => sum + (p.totalRevenue || 0), 0),
-    totalTenants: properties.reduce((sum, p) => sum + (p.tenantCount || 0), 0)
+    totalIncome: properties.reduce((sum, p) => 
+      sum + (p.financial?.totalMonthlyIncome || p.financial?.marketRent || 0), 0),
+    totalTenants: properties.reduce((sum, p) => sum + (p.tenants?.length || 0), 0)
   };
-
-  const propertyTypes = [
-    { value: 'apartment', label: 'Apartment', icon: Home },
-    { value: 'house', label: 'House', icon: Home },
-    { value: 'condo', label: 'Condo', icon: Building },
-    { value: 'commercial', label: 'Commercial', icon: Building }
-  ];
 
   if (loading && properties.length === 0) {
     return (
@@ -140,14 +145,14 @@ export default function PropertiesPage() {
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => setShowAddModal(true)}
-            disabled={user?.subscription?.plan === 'free' && stats.total >= user?.limits?.properties}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={user?.subscription?.plan === 'free' && stats.total >= (user?.limits?.properties || 5)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             <Plus className="w-4 h-4" />
             Add Property
           </button>
           
-          {user?.subscription?.plan === 'free' && stats.total >= user?.limits?.properties && (
+          {user?.subscription?.plan === 'free' && stats.total >= (user?.limits?.properties || 5) && (
             <div className="text-sm text-yellow-700 bg-yellow-50 px-3 py-2 rounded-lg">
               Free plan limited to {user?.limits?.properties} properties.{' '}
               <Link href="/pricing" className="font-medium underline">Upgrade</Link>
@@ -183,22 +188,22 @@ export default function PropertiesPage() {
         <div className="bg-white p-4 rounded-xl border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Active Tenants</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalTenants}</p>
+              <p className="text-sm text-gray-600">Monthly Income</p>
+              <p className="text-2xl font-bold text-gray-900">
+                ${stats.totalIncome.toLocaleString()}
+              </p>
             </div>
-            <Users className="w-8 h-8 text-purple-100 bg-purple-600 p-2 rounded-lg" />
+            <DollarSign className="w-8 h-8 text-purple-100 bg-purple-600 p-2 rounded-lg" />
           </div>
         </div>
         
         <div className="bg-white p-4 rounded-xl border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Monthly Revenue</p>
-              <p className="text-2xl font-bold text-gray-900">
-                ${stats.totalRevenue.toLocaleString()}
-              </p>
+              <p className="text-sm text-gray-600">Active Tenants</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.totalTenants}</p>
             </div>
-            <DollarSign className="w-8 h-8 text-orange-100 bg-orange-600 p-2 rounded-lg" />
+            <Users className="w-8 h-8 text-orange-100 bg-orange-600 p-2 rounded-lg" />
           </div>
         </div>
       </div>
@@ -215,7 +220,7 @@ export default function PropertiesPage() {
                 placeholder="Search properties by name or address..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -237,8 +242,8 @@ export default function PropertiesPage() {
           </div>
         </div>
         
-        {/* Additional Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        {/* Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Status
@@ -271,103 +276,64 @@ export default function PropertiesPage() {
               <option value="commercial">Commercial</option>
             </select>
           </div>
-          
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Min Rent
-              </label>
-              <input
-                type="number"
-                placeholder="$500"
-                value={filters.minPrice}
-                onChange={(e) => setFilters({...filters, minPrice: e.target.value})}
-                className="w-full p-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Max Rent
-              </label>
-              <input
-                type="number"
-                placeholder="$5000"
-                value={filters.maxPrice}
-                onChange={(e) => setFilters({...filters, maxPrice: e.target.value})}
-                className="w-full p-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Properties Grid/List */}
+      {/* Properties Grid */}
       {filteredProperties.length > 0 ? (
         viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProperties.map((property) => (
-              <PropertyCard
+              <div 
                 key={property._id}
-                property={property}
-                onDelete={handleDelete}
-              />
+                onClick={() => handleViewDetails(property)}
+                className="cursor-pointer"
+              >
+                <PropertyCard
+                  property={property}
+                  onDelete={handleDeleteClick}
+                />
+              </div>
             ))}
           </div>
         ) : (
+          // List View
           <div className="bg-white rounded-xl overflow-hidden border border-gray-100">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Property
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tenants
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Monthly Rent
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Property</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tenants</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monthly Income</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filteredProperties.map((property) => (
                   <tr key={property._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4">
                       <div>
                         <div className="font-medium text-gray-900">{property.name}</div>
                         <div className="text-sm text-gray-500 flex items-center">
                           <MapPin className="w-3 h-3 mr-1" />
-                          {property.address.street}, {property.address.city}
+                          {property.address?.street || 'No address'}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full capitalize">
+                    <td className="px-6 py-4">
+                      <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full capitalize">
                         {property.type}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <Users className="w-4 h-4 text-gray-400 mr-2" />
-                        <span>{property.tenantCount || 0} tenants</span>
-                      </div>
+                    <td className="px-6 py-4">{property.tenants?.length || 0}</td>
+                    <td className="px-6 py-4">
+                      ${property.financial?.totalMonthlyIncome?.toLocaleString() || 
+                         property.financial?.marketRent?.toLocaleString() || '0'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-gray-900">
-                        ${property.financial?.marketRent?.toLocaleString() || '0'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
                         property.status === 'active' ? 'bg-green-100 text-green-800' :
                         property.status === 'vacant' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-red-100 text-red-800'
@@ -375,23 +341,17 @@ export default function PropertiesPage() {
                         {property.status.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <Link
-                          href={`/dashboard/properties/${property._id}`}
-                          className="text-blue-600 hover:text-blue-900"
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleViewDetails(property)}
+                          className="text-blue-600 hover:text-blue-900 text-sm"
                         >
                           View
-                        </Link>
-                        <Link
-                          href={`/dashboard/properties/${property._id}/edit`}
-                          className="text-gray-600 hover:text-gray-900"
-                        >
-                          Edit
-                        </Link>
+                        </button>
                         <button
-                          onClick={() => handleDelete(property._id)}
-                          className="text-red-600 hover:text-red-900"
+                          onClick={() => handleDeleteClick(property._id)}
+                          className="text-red-600 hover:text-red-900 text-sm"
                         >
                           Delete
                         </button>
@@ -415,7 +375,7 @@ export default function PropertiesPage() {
           </p>
           <button
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             <Plus className="w-4 h-4 inline mr-2" />
             Add Property
@@ -423,39 +383,7 @@ export default function PropertiesPage() {
         </div>
       )}
 
-      {/* Pagination */}
-      {pagination.pages > 1 && filteredProperties.length > 0 && (
-        <div className="flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-lg">
-          <div className="text-sm text-gray-700">
-            Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to{' '}
-            <span className="font-medium">
-              {Math.min(pagination.page * pagination.limit, pagination.total)}
-            </span> of{' '}
-            <span className="font-medium">{pagination.total}</span> properties
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-              disabled={pagination.page === 1}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <span className="px-3 py-1 text-sm text-gray-700">
-              Page {pagination.page} of {pagination.pages}
-            </span>
-            <button
-              onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-              disabled={pagination.page === pagination.pages}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Add Property Modal */}
+      {/* Modals */}
       {showAddModal && (
         <AddPropertyModal
           onClose={() => setShowAddModal(false)}
@@ -466,9 +394,507 @@ export default function PropertiesPage() {
           user={user}
         />
       )}
+
+      {showDetailsModal && selectedProperty && (
+        <PropertyDetailsModal
+          property={selectedProperty}
+          onClose={() => {
+            setShowDetailsModal(false);
+            setSelectedProperty(null);
+          }}
+          onUpdate={handlePropertyUpdate}
+          onDelete={handleDeleteClick}
+        />
+      )}
+
+      {showDeleteModal && selectedProperty && (
+        <DeleteConfirmationModal
+          property={selectedProperty}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSelectedProperty(null);
+            setDeletingId(null);
+          }}
+          onConfirm={handleDeleteConfirm}
+          loading={loading}
+        />
+      )}
     </div>
   );
 }
+
+// app/dashboard/properties/page.js
+// 'use client';
+
+// import { useState, useEffect } from 'react';
+// import Link from 'next/link';
+// import { useAuth } from '@/app/components/AuthProvider';
+// import PropertyCard from '@/app/components/PropertyCard';
+// import AddPropertyModal from '@/app/components/AddPropertyModal';
+// import LoadingSpinner from '@/app/components/LoadingSpinner';
+// import { 
+//   Plus, 
+//   Search, 
+//   Filter,
+//   MapPin,
+//   Home,
+//   Building,
+//   DollarSign,
+//   Users,
+//   Grid,
+//   List,
+//   Download,
+//   MoreVertical
+// } from 'lucide-react';
+// import toast from 'react-hot-toast';
+
+// export default function PropertiesPage() {
+//   const { user } = useAuth();
+//   console.log('in property page',user);
+//   const [properties, setProperties] = useState([]);
+//   const [loading, setLoading] = useState(true);
+//   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+//   const [searchQuery, setSearchQuery] = useState('');
+//   const [filters, setFilters] = useState({
+//     status: 'all',
+//     type: 'all',
+//     minPrice: '',
+//     maxPrice: ''
+//   });
+//   const [showAddModal, setShowAddModal] = useState(false);
+//   const [pagination, setPagination] = useState({
+//     page: 1,
+//     limit: 12,
+//     total: 0,
+//     pages: 1
+//   });
+
+//   useEffect(() => {
+//     fetchProperties();
+//   }, [pagination.page, filters.status, filters.type]);
+
+//   const fetchProperties = async () => {
+//     try {
+//       setLoading(true);
+//       const queryParams = new URLSearchParams({
+//         page: pagination.page,
+//         limit: pagination.limit,
+//         status: filters.status,
+//         type: filters.type
+//       }).toString();
+      
+//       const res = await fetch(`/api/properties?${queryParams}`);
+//       if (res.ok) {
+//         const data = await res.json();
+//         setProperties(data.properties || []);
+//         setPagination(data.pagination || pagination);
+//       } else {
+//         throw new Error('Failed to fetch properties');
+//       }
+//     } catch (error) {
+//       console.error('Error fetching properties:', error);
+//       toast.error('Failed to load properties');
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   const handleDelete = async (propertyId) => {
+//     if (!confirm('Are you sure you want to delete this property? This will also remove all associated tenants.')) {
+//       return;
+//     }
+
+//     try {
+//       const res = await fetch(`/api/properties/${propertyId}`, {
+//         method: 'DELETE',
+//       });
+
+//       if (res.ok) {
+//         toast.success('Property deleted successfully');
+//         fetchProperties();
+//       } else {
+//         const data = await res.json();
+//         throw new Error(data.error || 'Delete failed');
+//       }
+//     } catch (error) {
+//       toast.error(error.message);
+//     }
+//   };
+
+//   const filteredProperties = properties.filter(property => {
+//     const matchesSearch = 
+//       property.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+//       property.address?.street?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+//       property.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+//     return matchesSearch;
+//   });
+
+//   const stats = {
+//     total: properties.length,
+//     active: properties.filter(p => p.status === 'active').length,
+//     vacant: properties.filter(p => p.status === 'vacant').length,
+//     totalValue: properties.reduce((sum, p) => sum + (p.financial?.currentValue || 0), 0),
+//     totalRevenue: properties.reduce((sum, p) => sum + (p.totalRevenue || 0), 0),
+//     totalTenants: properties.reduce((sum, p) => sum + (p.tenantCount || 0), 0)
+//   };
+
+//   const propertyTypes = [
+//     { value: 'apartment', label: 'Apartment', icon: Home },
+//     { value: 'house', label: 'House', icon: Home },
+//     { value: 'condo', label: 'Condo', icon: Building },
+//     { value: 'commercial', label: 'Commercial', icon: Building }
+//   ];
+
+//   if (loading && properties.length === 0) {
+//     return (
+//       <div className="flex items-center justify-center min-h-[60vh]">
+//         <LoadingSpinner size="lg" />
+//       </div>
+//     );
+//   }
+
+//   return (
+//     <div className="space-y-6">
+//       {/* Header */}
+//       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+//         <div>
+//           <h1 className="text-2xl font-bold text-gray-900">Properties</h1>
+//           <p className="text-gray-600">Manage your rental properties</p>
+//         </div>
+        
+//         <div className="flex flex-wrap gap-3">
+//           <button
+//             onClick={() => setShowAddModal(true)}
+//             disabled={user?.subscription?.plan === 'free' && stats.total >= user?.limits?.properties}
+//             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+//           >
+//             <Plus className="w-4 h-4" />
+//             Add Property
+//           </button>
+          
+//           {user?.subscription?.plan === 'free' && stats.total >= user?.limits?.properties && (
+//             <div className="text-sm text-yellow-700 bg-yellow-50 px-3 py-2 rounded-lg">
+//               Free plan limited to {user?.limits?.properties} properties.{' '}
+//               <Link href="/pricing" className="font-medium underline">Upgrade</Link>
+//             </div>
+//           )}
+//         </div>
+//       </div>
+
+//       {/* Stats */}
+//       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+//         <div className="bg-white p-4 rounded-xl border border-gray-100">
+//           <div className="flex items-center justify-between">
+//             <div>
+//               <p className="text-sm text-gray-600">Total Properties</p>
+//               <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+//             </div>
+//             <Home className="w-8 h-8 text-blue-100 bg-blue-600 p-2 rounded-lg" />
+//           </div>
+//         </div>
+        
+//         <div className="bg-white p-4 rounded-xl border border-gray-100">
+//           <div className="flex items-center justify-between">
+//             <div>
+//               <p className="text-sm text-gray-600">Total Value</p>
+//               <p className="text-2xl font-bold text-gray-900">
+//                 ${(stats.totalValue / 1000).toFixed(0)}k
+//               </p>
+//             </div>
+//             <DollarSign className="w-8 h-8 text-green-100 bg-green-600 p-2 rounded-lg" />
+//           </div>
+//         </div>
+        
+//         <div className="bg-white p-4 rounded-xl border border-gray-100">
+//           <div className="flex items-center justify-between">
+//             <div>
+//               <p className="text-sm text-gray-600">Active Tenants</p>
+//               <p className="text-2xl font-bold text-gray-900">{stats.totalTenants}</p>
+//             </div>
+//             <Users className="w-8 h-8 text-purple-100 bg-purple-600 p-2 rounded-lg" />
+//           </div>
+//         </div>
+        
+//         <div className="bg-white p-4 rounded-xl border border-gray-100">
+//           <div className="flex items-center justify-between">
+//             <div>
+//               <p className="text-sm text-gray-600">Monthly Revenue</p>
+//               <p className="text-2xl font-bold text-gray-900">
+//                 ${stats.totalRevenue.toLocaleString()}
+//               </p>
+//             </div>
+//             <DollarSign className="w-8 h-8 text-orange-100 bg-orange-600 p-2 rounded-lg" />
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* Filters & Search */}
+//       <div className="bg-white rounded-xl p-4 border border-gray-100">
+//         <div className="flex flex-col lg:flex-row gap-4">
+//           {/* Search */}
+//           <div className="flex-1">
+//             <div className="relative">
+//               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+//               <input
+//                 type="search"
+//                 placeholder="Search properties by name or address..."
+//                 value={searchQuery}
+//                 onChange={(e) => setSearchQuery(e.target.value)}
+//                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+//               />
+//             </div>
+//           </div>
+          
+//           {/* View Toggle */}
+//           <div className="flex items-center gap-2">
+//             <button
+//               onClick={() => setViewMode('grid')}
+//               className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
+//             >
+//               <Grid className="w-5 h-5" />
+//             </button>
+//             <button
+//               onClick={() => setViewMode('list')}
+//               className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
+//             >
+//               <List className="w-5 h-5" />
+//             </button>
+//           </div>
+//         </div>
+        
+//         {/* Additional Filters */}
+//         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+//           <div>
+//             <label className="block text-sm font-medium text-gray-700 mb-1">
+//               Status
+//             </label>
+//             <select
+//               value={filters.status}
+//               onChange={(e) => setFilters({...filters, status: e.target.value})}
+//               className="w-full p-2 border border-gray-300 rounded-lg"
+//             >
+//               <option value="all">All Status</option>
+//               <option value="active">Active</option>
+//               <option value="vacant">Vacant</option>
+//               <option value="under_maintenance">Under Maintenance</option>
+//             </select>
+//           </div>
+          
+//           <div>
+//             <label className="block text-sm font-medium text-gray-700 mb-1">
+//               Property Type
+//             </label>
+//             <select
+//               value={filters.type}
+//               onChange={(e) => setFilters({...filters, type: e.target.value})}
+//               className="w-full p-2 border border-gray-300 rounded-lg"
+//             >
+//               <option value="all">All Types</option>
+//               <option value="apartment">Apartment</option>
+//               <option value="house">House</option>
+//               <option value="condo">Condo</option>
+//               <option value="commercial">Commercial</option>
+//             </select>
+//           </div>
+          
+//           <div className="flex gap-2 items-end">
+//             <div className="flex-1">
+//               <label className="block text-sm font-medium text-gray-700 mb-1">
+//                 Min Rent
+//               </label>
+//               <input
+//                 type="number"
+//                 placeholder="$500"
+//                 value={filters.minPrice}
+//                 onChange={(e) => setFilters({...filters, minPrice: e.target.value})}
+//                 className="w-full p-2 border border-gray-300 rounded-lg"
+//               />
+//             </div>
+//             <div className="flex-1">
+//               <label className="block text-sm font-medium text-gray-700 mb-1">
+//                 Max Rent
+//               </label>
+//               <input
+//                 type="number"
+//                 placeholder="$5000"
+//                 value={filters.maxPrice}
+//                 onChange={(e) => setFilters({...filters, maxPrice: e.target.value})}
+//                 className="w-full p-2 border border-gray-300 rounded-lg"
+//               />
+//             </div>
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* Properties Grid/List */}
+//       {filteredProperties.length > 0 ? (
+//         viewMode === 'grid' ? (
+//           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+//             {filteredProperties.map((property) => (
+//               <PropertyCard
+//                 key={property._id}
+//                 property={property}
+//                 onDelete={handleDelete}
+//               />
+//             ))}
+//           </div>
+//         ) : (
+//           <div className="bg-white rounded-xl overflow-hidden border border-gray-100">
+//             <table className="w-full">
+//               <thead className="bg-gray-50">
+//                 <tr>
+//                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                     Property
+//                   </th>
+//                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                     Type
+//                   </th>
+//                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                     Tenants
+//                   </th>
+//                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                     Monthly Rent
+//                   </th>
+//                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                     Status
+//                   </th>
+//                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                     Actions
+//                   </th>
+//                 </tr>
+//               </thead>
+//               <tbody className="divide-y divide-gray-200">
+//                 {filteredProperties.map((property) => (
+//                   <tr key={property._id} className="hover:bg-gray-50">
+//                     <td className="px-6 py-4 whitespace-nowrap">
+//                       <div>
+//                         <div className="font-medium text-gray-900">{property.name}</div>
+//                         <div className="text-sm text-gray-500 flex items-center">
+//                           <MapPin className="w-3 h-3 mr-1" />
+//                           {property.address.street}, {property.address.city}
+//                         </div>
+//                       </div>
+//                     </td>
+//                     <td className="px-6 py-4 whitespace-nowrap">
+//                       <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full capitalize">
+//                         {property.type}
+//                       </span>
+//                     </td>
+//                     <td className="px-6 py-4 whitespace-nowrap">
+//                       <div className="flex items-center">
+//                         <Users className="w-4 h-4 text-gray-400 mr-2" />
+//                         <span>{property.tenantCount || 0} tenants</span>
+//                       </div>
+//                     </td>
+//                     <td className="px-6 py-4 whitespace-nowrap">
+//                       <div className="font-medium text-gray-900">
+//                         ${property.financial?.marketRent?.toLocaleString() || '0'}
+//                       </div>
+//                     </td>
+//                     <td className="px-6 py-4 whitespace-nowrap">
+//                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+//                         property.status === 'active' ? 'bg-green-100 text-green-800' :
+//                         property.status === 'vacant' ? 'bg-yellow-100 text-yellow-800' :
+//                         'bg-red-100 text-red-800'
+//                       }`}>
+//                         {property.status.replace('_', ' ')}
+//                       </span>
+//                     </td>
+//                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+//                       <div className="flex items-center gap-2">
+//                         <Link
+//                           href={`/dashboard/properties/${property._id}`}
+//                           className="text-blue-600 hover:text-blue-900"
+//                         >
+//                           View
+//                         </Link>
+//                         <Link
+//                           href={`/dashboard/properties/${property._id}/edit`}
+//                           className="text-gray-600 hover:text-gray-900"
+//                         >
+//                           Edit
+//                         </Link>
+//                         <button
+//                           onClick={() => handleDelete(property._id)}
+//                           className="text-red-600 hover:text-red-900"
+//                         >
+//                           Delete
+//                         </button>
+//                       </div>
+//                     </td>
+//                   </tr>
+//                 ))}
+//               </tbody>
+//             </table>
+//           </div>
+//         )
+//       ) : (
+//         <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+//           <Home className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+//           <h3 className="text-lg font-medium text-gray-900 mb-2">No properties found</h3>
+//           <p className="text-gray-600 mb-4">
+//             {searchQuery || filters.status !== 'all' || filters.type !== 'all'
+//               ? 'Try adjusting your search or filters'
+//               : 'Get started by adding your first property'
+//             }
+//           </p>
+//           <button
+//             onClick={() => setShowAddModal(true)}
+//             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+//           >
+//             <Plus className="w-4 h-4 inline mr-2" />
+//             Add Property
+//           </button>
+//         </div>
+//       )}
+
+//       {/* Pagination */}
+//       {pagination.pages > 1 && filteredProperties.length > 0 && (
+//         <div className="flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-lg">
+//           <div className="text-sm text-gray-700">
+//             Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to{' '}
+//             <span className="font-medium">
+//               {Math.min(pagination.page * pagination.limit, pagination.total)}
+//             </span> of{' '}
+//             <span className="font-medium">{pagination.total}</span> properties
+//           </div>
+//           <div className="flex gap-2">
+//             <button
+//               onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+//               disabled={pagination.page === 1}
+//               className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+//             >
+//               Previous
+//             </button>
+//             <span className="px-3 py-1 text-sm text-gray-700">
+//               Page {pagination.page} of {pagination.pages}
+//             </span>
+//             <button
+//               onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+//               disabled={pagination.page === pagination.pages}
+//               className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+//             >
+//               Next
+//             </button>
+//           </div>
+//         </div>
+//       )}
+
+//       {/* Add Property Modal */}
+//       {showAddModal && (
+//         <AddPropertyModal
+//           onClose={() => setShowAddModal(false)}
+//           onSuccess={() => {
+//             fetchProperties();
+//             setShowAddModal(false);
+//           }}
+//           user={user}
+//         />
+//       )}
+//     </div>
+//   );
+// }
 
 // 'use client';
 
