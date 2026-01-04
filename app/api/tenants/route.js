@@ -1,20 +1,41 @@
 // app/api/tenants/route.js
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
+import { getSession } from '@/app/lib/auth';
 
 export async function GET(request) {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    console.log('GET /api/tenants - Checking session...');
+    const session = await getSession(request);
+    
+    if (!session) {
+      console.error('No session found in GET');
+      return NextResponse.json({ error: 'Unauthorized - No session' }, { status: 401 });
+    }
+    
+    // Handle different session structures
+    if (!session.user) {
+      if (session._id) {
+        session.user = { id: session._id };
+      } else if (session.id) {
+        session.user = { id: session.id };
+      } else if (session.user_id) {
+        session.user = { id: session.user_id };
+      }
+    }
+    
+    if (!session.user || !session.user.id) {
+      console.error('No user ID found in session');
+      return NextResponse.json({ error: 'Unauthorized - Invalid session' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page')) || 1;
     const limit = parseInt(searchParams.get('limit')) || 20;
     const status = searchParams.get('status');
+    const propertyId = searchParams.get('propertyId');
+    const unit = searchParams.get('unit');
     const skip = (page - 1) * limit;
 
     const { db } = await connectToDatabase();
@@ -26,11 +47,37 @@ export async function GET(request) {
     if (status && status !== 'all') {
       query.status = status;
     }
+    
+    if (propertyId && propertyId !== 'all') {
+      try {
+        query.propertyId = new ObjectId(propertyId);
+      } catch (e) {
+        console.warn('Invalid propertyId:', propertyId);
+      }
+    }
+    
+    if (unit && unit.trim()) {
+      query.unit = { $regex: unit.trim(), $options: 'i' };
+    }
 
     // Execute queries in parallel
     const [tenants, total] = await Promise.all([
       db.collection('tenants')
         .find(query)
+        .project({
+          'personalInfo.fullName': 1,
+          'personalInfo.email': 1,
+          'personalInfo.phone': 1,
+          'propertyId': 1,
+          'unit': 1,
+          'lease.monthlyRent': 1,
+          'lease.startDate': 1,
+          'lease.endDate': 1,
+          'status': 1,
+          'rentStatus.currentBalance': 1,
+          'rentStatus.nextPaymentDue': 1,
+          'createdAt': 1
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -38,11 +85,11 @@ export async function GET(request) {
       db.collection('tenants').countDocuments(query)
     ]);
 
-    // Transform ObjectId to string for JSON serialization
+    // Transform ObjectId to string
     const transformedTenants = tenants.map(tenant => ({
       ...tenant,
       _id: tenant._id.toString(),
-      userId: tenant.userId.toString(),
+      userId: tenant.userId?.toString(),
       propertyId: tenant.propertyId?.toString()
     }));
 
@@ -63,86 +110,444 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const session = await getSession(request);
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized - No session' }, { status: 401 });
+    }
+    
+    // Handle different session structures
+    if (!session.user) {
+      if (session._id) {
+        session.user = { id: session._id };
+      } else if (session.id) {
+        session.user = { id: session.id };
+      } else if (session.user_id) {
+        session.user = { id: session.user_id };
+      }
+    }
+    
+    if (!session.user || !session.user.id) {
+      return NextResponse.json({ error: 'Unauthorized - Invalid session' }, { status: 401 });
     }
 
     const userId = new ObjectId(session.user.id);
     const body = await request.json();
     const { db } = await connectToDatabase();
 
-    // Check user limits
-    if (session.user.subscription?.plan === 'free') {
+    // Basic validation
+    if (!body.personalInfo?.fullName?.trim()) {
+      return NextResponse.json(
+        { error: 'Full name is required' },
+        { status: 400 }
+      );
+    }
+    
+    if (!body.lease?.startDate) {
+      return NextResponse.json(
+        { error: 'Lease start date is required' },
+        { status: 400 }
+      );
+    }
+    
+    if (!body.lease?.monthlyRent || isNaN(parseFloat(body.lease.monthlyRent))) {
+      return NextResponse.json(
+        { error: 'Valid monthly rent is required' },
+        { status: 400 }
+      );
+    }
+    
+    // Calculate end date if not provided (3 months from start date)
+    let endDate;
+    const startDate = new Date(body.lease.startDate);
+    
+    if (body.lease?.endDate) {
+      endDate = new Date(body.lease.endDate);
+    } else {
+      // Set end date to 3 months from start date
+      endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + 3);
+    }
+    
+    // Validate dates
+    if (startDate >= endDate) {
+      return NextResponse.json(
+        { error: 'Lease end date must be after start date' },
+        { status: 400 }
+      );
+    }
+    
+    // Check if end date is too far in the future (optional: limit to 2 years)
+    const maxEndDate = new Date(startDate);
+    maxEndDate.setFullYear(maxEndDate.getFullYear() + 2);
+    
+    if (endDate > maxEndDate) {
+      return NextResponse.json(
+        { error: 'Lease term cannot exceed 2 years' },
+        { status: 400 }
+      );
+    }
+
+    // Get user plan and limits
+    const userPlan = session.subscription?.plan || 'free';
+    const userLimits = session.limits || { tenants: 10 };
+    
+    if (userPlan === 'free') {
       const tenantCount = await db.collection('tenants').countDocuments({ userId });
-      const userLimit = session.user.limits?.tenants || 10;
       
-      if (tenantCount >= userLimit) {
+      if (tenantCount >= userLimits.tenants) {
         return NextResponse.json(
-          { error: `Free plan limited to ${userLimit} tenants. Please upgrade.` },
+          { error: `Free plan limited to ${userLimits.tenants} tenants. Please upgrade.` },
           { status: 403 }
         );
       }
     }
 
-    // Create tenant document with user isolation
+    // Validate property exists and belongs to user
+    if (body.propertyId) {
+      try {
+        const propertyObjectId = new ObjectId(body.propertyId);
+        const property = await db.collection('properties').findOne({
+          _id: propertyObjectId,
+          userId: userId
+        });
+        
+        if (!property) {
+          return NextResponse.json(
+            { error: 'Property not found or access denied' },
+            { status: 404 }
+          );
+        }
+        
+        // Check unit occupancy
+        if (body.unit) {
+          const existingTenant = await db.collection('tenants').findOne({
+            userId,
+            propertyId: propertyObjectId,
+            unit: body.unit,
+            status: 'active'
+          });
+          
+          if (existingTenant) {
+            return NextResponse.json(
+              { error: `Unit ${body.unit} is already occupied` },
+              { status: 400 }
+            );
+          }
+        }
+      } catch (e) {
+        return NextResponse.json(
+          { error: 'Invalid property ID' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Calculate next payment due date
+    const calculateNextDueDate = (startDate, dueDay = 1) => {
+      const start = new Date(startDate);
+      const now = new Date();
+      
+      if (now < start) {
+        return start;
+      }
+
+      const nextDue = new Date(now.getFullYear(), now.getMonth(), dueDay);
+      
+      if (nextDue < now) {
+        nextDue.setMonth(nextDue.getMonth() + 1);
+      }
+      
+      return nextDue;
+    };
+
+    // Create tenant document
     const tenantData = {
       userId,
-      ...body,
-      status: 'active',
+      personalInfo: {
+        fullName: body.personalInfo.fullName.trim(),
+        email: body.personalInfo.email?.trim() || '',
+        phone: body.personalInfo.phone?.trim() || '',
+        dateOfBirth: body.personalInfo.dateOfBirth || '',
+        gender: body.personalInfo.gender || '',
+        maritalStatus: body.personalInfo.maritalStatus || '',
+        nationality: body.personalInfo.nationality || '',
+        language: body.personalInfo.language || '',
+        identification: body.personalInfo.identification || {
+          type: '',
+          number: '',
+          issueDate: '',
+          expiryDate: '',
+          issuingAuthority: ''
+        }
+      },
+      employment: body.employment || {
+        occupation: '',
+        employer: '',
+        workAddress: '',
+        workPhone: '',
+        employmentType: '',
+        employmentStartDate: '',
+        monthlyIncome: '',
+        annualIncome: '',
+        payFrequency: '',
+        educationLevel: '',
+        schoolName: '',
+        graduationYear: ''
+      },
+      propertyId: body.propertyId ? new ObjectId(body.propertyId) : null,
+      unit: body.unit || '',
+      lease: {
+        startDate: startDate,
+        endDate: endDate,
+        monthlyRent: parseFloat(body.lease.monthlyRent),
+        securityDeposit: body.lease.securityDeposit ? parseFloat(body.lease.securityDeposit) : 0,
+        petDeposit: body.lease.petDeposit ? parseFloat(body.lease.petDeposit) : 0,
+        dueDay: body.lease.dueDay || 1,
+        lateFee: body.lease.lateFee ? parseFloat(body.lease.lateFee) : 0,
+        gracePeriod: body.lease.gracePeriod || 5,
+        utilitiesIncluded: body.lease.utilitiesIncluded || [],
+        tenantPays: body.lease.tenantPays || [],
+        durationMonths: Math.ceil((endDate - startDate) / (30 * 24 * 60 * 60 * 1000)) // Approximate months
+      },
+      pets: body.pets || [],
+      vehicles: body.vehicles || [],
+      familyMembers: body.familyMembers || [],
+      financial: body.financial || {
+        creditScore: '',
+        paymentMethods: [],
+        previousRentalHistory: [],
+        monthlyDebtObligations: ''
+      },
+      insurance: body.insurance || {
+        renterInsurance: {
+          provider: '',
+          policyNumber: '',
+          coverageAmount: '',
+          effectiveDate: '',
+          monthlyPremium: ''
+        }
+      },
+      emergencyContact: body.emergencyContact || { 
+        primary: { name: '', relationship: '', phone: '' } 
+      },
+      notes: body.notes || '',
+      status: body.status || 'active',
+      tags: body.tags || [],
       rentStatus: {
         currentBalance: 0,
         lastPaymentDate: null,
-        nextPaymentDue: calculateNextDueDate(body.leaseStartDate, body.rentDueDay),
-        paymentHistory: []
+        nextPaymentDue: calculateNextDueDate(body.lease.startDate, body.lease.dueDay || 1),
+        paymentHistory: [],
+        totalRentDue: parseFloat(body.lease.monthlyRent) * Math.ceil((endDate - startDate) / (30 * 24 * 60 * 60 * 1000))
       },
       documents: [],
       createdAt: new Date(),
       updatedAt: new Date()
     };
 
-    // Insert into database
+    // Insert tenant
     const result = await db.collection('tenants').insertOne(tenantData);
 
     // Update user stats
     await db.collection('users').updateOne(
       { _id: userId },
       { 
-        $inc: { 'stats.totalTenants': 1 },
+        $inc: { 'stats.totalTenants': 1, 'stats.activeLeases': 1 },
         $set: { updatedAt: new Date() }
       }
     );
 
+    // Update property stats
+    if (body.propertyId) {
+      await db.collection('properties').updateOne(
+        { 
+          _id: new ObjectId(body.propertyId),
+          userId: userId
+        },
+        { 
+          $inc: { 'stats.totalTenants': 1, 'stats.occupiedUnits': 1 },
+          $set: { updatedAt: new Date() }
+        }
+      );
+    }
+
     return NextResponse.json({
       message: 'Tenant added successfully',
-      tenantId: result.insertedId.toString()
+      tenantId: result.insertedId.toString(),
+      tenant: {
+        ...tenantData,
+        _id: result.insertedId.toString(),
+        userId: userId.toString(),
+        propertyId: tenantData.propertyId?.toString(),
+        lease: {
+          ...tenantData.lease,
+          startDate: tenantData.lease.startDate.toISOString(),
+          endDate: tenantData.lease.endDate.toISOString()
+        }
+      }
     }, { status: 201 });
   } catch (error) {
     console.error('Error adding tenant:', error);
+    
+    if (error.name === 'BSONError') {
+      return NextResponse.json(
+        { error: 'Invalid data format' },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// Helper function to calculate next payment due date
-function calculateNextDueDate(startDate, dueDay) {
-  const start = new Date(startDate);
-  const now = new Date();
-  
-  // If lease hasn't started yet, first payment is on lease start day
-  if (now < start) {
-    return start;
-  }
+// // app/api/tenants/route.js
+// import { NextResponse } from 'next/server';
+// import { connectToDatabase } from '@/app/lib/mongodb';
+// import { ObjectId } from 'mongodb';
+// import { getSession } from '@/app/lib/auth';
 
-  // Calculate next due date based on due day
-  const nextDue = new Date(now.getFullYear(), now.getMonth(), dueDay);
+// export async function GET(request) {
+//   try {
+//     const session = await getServerSession();
+//     if (!session?.user?.id) {
+//       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+//     }
+
+//     const { searchParams } = new URL(request.url);
+//     const page = parseInt(searchParams.get('page')) || 1;
+//     const limit = parseInt(searchParams.get('limit')) || 20;
+//     const status = searchParams.get('status');
+//     const skip = (page - 1) * limit;
+
+//     const { db } = await connectToDatabase();
+//     const userId = new ObjectId(session.user.id);
+
+//     // Build query with user isolation
+//     let query = { userId };
+    
+//     if (status && status !== 'all') {
+//       query.status = status;
+//     }
+
+//     // Execute queries in parallel
+//     const [tenants, total] = await Promise.all([
+//       db.collection('tenants')
+//         .find(query)
+//         .sort({ createdAt: -1 })
+//         .skip(skip)
+//         .limit(limit)
+//         .toArray(),
+//       db.collection('tenants').countDocuments(query)
+//     ]);
+
+//     // Transform ObjectId to string for JSON serialization
+//     const transformedTenants = tenants.map(tenant => ({
+//       ...tenant,
+//       _id: tenant._id.toString(),
+//       userId: tenant.userId.toString(),
+//       propertyId: tenant.propertyId?.toString()
+//     }));
+
+//     return NextResponse.json({
+//       tenants: transformedTenants,
+//       pagination: {
+//         page,
+//         limit,
+//         total,
+//         pages: Math.ceil(total / limit)
+//       }
+//     });
+//   } catch (error) {
+//     console.error('Error fetching tenants:', error);
+//     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+//   }
+// }
+
+// export async function POST(request) {
+//   try {
+//     await connectToDatabase();
+//     // const session = await getSession(request);
+//     // if (!session?.user?.id) {
+//     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+//     // }
+
+//     // const userId = new ObjectId(session.user.id);
+//     const body = await request.json();
+//     console.log(body);
+//     const { db } = await connectToDatabase();
+
+//     // Check user limits
+//     if (session.user.subscription?.plan === 'free') {
+//       const tenantCount = await db.collection('tenants').countDocuments({ userId });
+//       const userLimit = session.user.limits?.tenants || 10;
+      
+//       if (tenantCount >= userLimit) {
+//         return NextResponse.json(
+//           { error: `Free plan limited to ${userLimit} tenants. Please upgrade.` },
+//           { status: 403 }
+//         );
+//       }
+//     }
+
+//     // Create tenant document with user isolation
+//     const tenantData = {
+//       userId,
+//       ...body,
+//       status: 'active',
+//       rentStatus: {
+//         currentBalance: 0,
+//         lastPaymentDate: null,
+//         nextPaymentDue: calculateNextDueDate(body.leaseStartDate, body.rentDueDay),
+//         paymentHistory: []
+//       },
+//       documents: [],
+//       createdAt: new Date(),
+//       updatedAt: new Date()
+//     };
+
+//     // Insert into database
+//     const result = await db.collection('tenants').insertOne(tenantData);
+
+//     // Update user stats
+//     await db.collection('users').updateOne(
+//       { _id: userId },
+//       { 
+//         $inc: { 'stats.totalTenants': 1 },
+//         $set: { updatedAt: new Date() }
+//       }
+//     );
+
+//     return NextResponse.json({
+//       message: 'Tenant added successfully',
+//       tenantId: result.insertedId.toString()
+//     }, { status: 201 });
+//   } catch (error) {
+//     console.error('Error adding tenant:', error);
+//     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+//   }
+// }
+
+// // Helper function to calculate next payment due date
+// function calculateNextDueDate(startDate, dueDay) {
+//   const start = new Date(startDate);
+//   const now = new Date();
   
-  // If due day has passed this month, go to next month
-  if (nextDue < now) {
-    nextDue.setMonth(nextDue.getMonth() + 1);
-  }
+//   // If lease hasn't started yet, first payment is on lease start day
+//   if (now < start) {
+//     return start;
+//   }
+
+//   // Calculate next due date based on due day
+//   const nextDue = new Date(now.getFullYear(), now.getMonth(), dueDay);
   
-  return nextDue;
-}
+//   // If due day has passed this month, go to next month
+//   if (nextDue < now) {
+//     nextDue.setMonth(nextDue.getMonth() + 1);
+//   }
+  
+//   return nextDue;
+// }
 
 // import { NextResponse } from 'next/server';
 // import { requireAuth } from '@/app/lib/auth';

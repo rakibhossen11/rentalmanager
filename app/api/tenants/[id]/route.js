@@ -1,23 +1,23 @@
 // app/api/tenants/[id]/route.js
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
+import { getSession } from '@/app/lib/auth';
 
 export async function GET(request, { params }) {
   try {
-    const session = await getServerSession();
+    const session = await getSession(request);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = params;
-    const userId = new ObjectId(session.user.id);
     const { db } = await connectToDatabase();
+    const userId = new ObjectId(session.user.id);
 
     const tenant = await db.collection('tenants').findOne({
       _id: new ObjectId(id),
-      userId
+      userId: userId
     });
 
     if (!tenant) {
@@ -28,7 +28,7 @@ export async function GET(request, { params }) {
     const transformedTenant = {
       ...tenant,
       _id: tenant._id.toString(),
-      userId: tenant.userId.toString(),
+      userId: tenant.userId?.toString(),
       propertyId: tenant.propertyId?.toString()
     };
 
@@ -41,7 +41,7 @@ export async function GET(request, { params }) {
 
 export async function PUT(request, { params }) {
   try {
-    const session = await getServerSession();
+    const session = await getSession(request);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -51,10 +51,10 @@ export async function PUT(request, { params }) {
     const body = await request.json();
     const { db } = await connectToDatabase();
 
-    // Check if tenant belongs to user
+    // Check if tenant exists and belongs to user
     const existingTenant = await db.collection('tenants').findOne({
       _id: new ObjectId(id),
-      userId
+      userId: userId
     });
 
     if (!existingTenant) {
@@ -64,15 +64,41 @@ export async function PUT(request, { params }) {
     // Update tenant
     const updateData = {
       ...body,
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      propertyId: body.propertyId ? new ObjectId(body.propertyId) : null
     };
 
+    // Handle date conversions
+    if (updateData.lease?.startDate) {
+      updateData.lease.startDate = new Date(updateData.lease.startDate);
+    }
+    if (updateData.lease?.endDate) {
+      updateData.lease.endDate = new Date(updateData.lease.endDate);
+    }
+
     await db.collection('tenants').updateOne(
-      { _id: new ObjectId(id), userId },
+      { _id: new ObjectId(id), userId: userId },
       { $set: updateData }
     );
 
-    return NextResponse.json({ message: 'Tenant updated successfully' });
+    // Get updated tenant
+    const updatedTenant = await db.collection('tenants').findOne({
+      _id: new ObjectId(id),
+      userId: userId
+    });
+
+    // Transform ObjectId to string
+    const transformedTenant = {
+      ...updatedTenant,
+      _id: updatedTenant._id.toString(),
+      userId: updatedTenant.userId?.toString(),
+      propertyId: updatedTenant.propertyId?.toString()
+    };
+
+    return NextResponse.json({
+      message: 'Tenant updated successfully',
+      tenant: transformedTenant
+    });
   } catch (error) {
     console.error('Error updating tenant:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -81,7 +107,7 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const session = await getServerSession();
+    const session = await getSession(request);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -90,27 +116,21 @@ export async function DELETE(request, { params }) {
     const userId = new ObjectId(session.user.id);
     const { db } = await connectToDatabase();
 
-    // Check if tenant belongs to user
+    // Check if tenant exists and belongs to user
     const tenant = await db.collection('tenants').findOne({
       _id: new ObjectId(id),
-      userId
+      userId: userId
     });
 
     if (!tenant) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
-    // Soft delete: mark as deleted instead of removing
-    await db.collection('tenants').updateOne(
-      { _id: new ObjectId(id), userId },
-      { 
-        $set: { 
-          status: 'deleted',
-          deletedAt: new Date(),
-          updatedAt: new Date()
-        }
-      }
-    );
+    // Delete tenant
+    await db.collection('tenants').deleteOne({
+      _id: new ObjectId(id),
+      userId: userId
+    });
 
     // Update user stats
     await db.collection('users').updateOne(
@@ -121,524 +141,23 @@ export async function DELETE(request, { params }) {
       }
     );
 
+    // Update property stats if tenant was assigned to a property
+    if (tenant.propertyId) {
+      await db.collection('properties').updateOne(
+        { 
+          _id: tenant.propertyId,
+          userId: userId
+        },
+        { 
+          $inc: { 'stats.totalTenants': -1, 'stats.occupiedUnits': -1 },
+          $set: { updatedAt: new Date() }
+        }
+      );
+    }
+
     return NextResponse.json({ message: 'Tenant deleted successfully' });
   } catch (error) {
     console.error('Error deleting tenant:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-
-// import { NextResponse } from 'next/server';
-// import { requireAuth } from '@/app/lib/auth';
-// import { connectToDatabase, ObjectId } from '@/app/lib/mongodb';
-
-// // GET single tenant
-// export async function GET(request, { params }) {
-//     try {
-//         const { companyId } = await requireAuth(request);
-//         const { id } = await params;
-        
-//         // Validate ObjectId
-//         if (!ObjectId.isValid(id)) {
-//             return NextResponse.json(
-//                 { error: 'Invalid tenant ID format' },
-//                 { status: 400 }
-//             );
-//         }
-        
-//         const { db } = await connectToDatabase();
-        
-//         const tenant = await db.collection('tenants').findOne({
-//             _id: new ObjectId(id),
-//             companyId: new ObjectId(companyId)
-//         });
-        
-//         if (!tenant) {
-//             return NextResponse.json(
-//                 { error: 'Tenant not found' },
-//                 { status: 404 }
-//             );
-//         }
-        
-//         return NextResponse.json(tenant);
-        
-//     } catch (error) {
-//         console.error('Get tenant error:', error);
-        
-//         if (error.message.includes('Authentication')) {
-//             return NextResponse.json(
-//                 { error: 'Authentication required' },
-//                 { status: 401 }
-//             );
-//         }
-        
-//         return NextResponse.json(
-//             { error: 'Failed to fetch tenant' },
-//             { status: 500 }
-//         );
-//     }
-// }
-
-// // PUT update tenant
-// export async function PUT(request, { params }) {
-//     try {
-//         const { userId, companyId } = await requireAuth(request);
-//         const { id } = await params;
-//         const updateData = await request.json();
-        
-//         // Validate ObjectId
-//         if (!ObjectId.isValid(id)) {
-//             return NextResponse.json(
-//                 { error: 'Invalid tenant ID format' },
-//                 { status: 400 }
-//             );
-//         }
-        
-//         const { db } = await connectToDatabase();
-        
-//         // Check if tenant exists
-//         const existingTenant = await db.collection('tenants').findOne({
-//             _id: new ObjectId(id),
-//             companyId: new ObjectId(companyId)
-//         });
-        
-//         if (!existingTenant) {
-//             return NextResponse.json(
-//                 { error: 'Tenant not found' },
-//                 { status: 404 }
-//             );
-//         }
-        
-//         // If email is being updated, check for duplicates
-//         if (updateData.email && updateData.email !== existingTenant.email) {
-//             const duplicateTenant = await db.collection('tenants').findOne({
-//                 email: updateData.email.toLowerCase(),
-//                 companyId: new ObjectId(companyId),
-//                 _id: { $ne: new ObjectId(id) }
-//             });
-            
-//             if (duplicateTenant) {
-//                 return NextResponse.json(
-//                     { error: 'A tenant with this email already exists' },
-//                     { status: 409 }
-//                 );
-//             }
-//         }
-        
-//         // Prepare update object
-//         const updateObject = {
-//             $set: {
-//                 ...updateData,
-//                 updatedAt: new Date()
-//             },
-//             $push: {
-//                 auditTrail: {
-//                     action: 'UPDATE',
-//                     userId: new ObjectId(userId),
-//                     timestamp: new Date(),
-//                     changes: updateData,
-//                     ip: request.headers.get('x-forwarded-for') || null
-//                 }
-//             }
-//         };
-        
-//         // Convert numeric fields
-//         if (updateData.rentAmount !== undefined) {
-//             updateObject.$set.rentAmount = parseFloat(updateData.rentAmount);
-//         }
-//         if (updateData.securityDeposit !== undefined) {
-//             updateObject.$set.securityDeposit = parseFloat(updateData.securityDeposit);
-//         }
-//         if (updateData.petDeposit !== undefined) {
-//             updateObject.$set.petDeposit = parseFloat(updateData.petDeposit);
-//         }
-//         if (updateData.rentDueDay !== undefined) {
-//             updateObject.$set.rentDueDay = parseInt(updateData.rentDueDay);
-//         }
-        
-//         // Update tenant
-//         const result = await db.collection('tenants').updateOne(
-//             {
-//                 _id: new ObjectId(id),
-//                 companyId: new ObjectId(companyId)
-//             },
-//             updateObject
-//         );
-        
-//         if (result.matchedCount === 0) {
-//             return NextResponse.json(
-//                 { error: 'Tenant not found' },
-//                 { status: 404 }
-//             );
-//         }
-        
-//         // Get updated tenant
-//         const updatedTenant = await db.collection('tenants').findOne({
-//             _id: new ObjectId(id)
-//         });
-        
-//         return NextResponse.json({
-//             success: true,
-//             message: 'Tenant updated successfully',
-//             tenant: updatedTenant
-//         });
-        
-//     } catch (error) {
-//         console.error('Update tenant error:', error);
-        
-//         if (error.message.includes('Authentication')) {
-//             return NextResponse.json(
-//                 { error: 'Authentication required' },
-//                 { status: 401 }
-//             );
-//         }
-        
-//         return NextResponse.json(
-//             { error: 'Failed to update tenant' },
-//             { status: 500 }
-//         );
-//     }
-// }
-
-// // DELETE tenant
-// export async function DELETE(request, { params }) {
-//     try {
-//         const { userId, companyId } = await requireAuth(request);
-//         const { id } = await params;
-        
-//         // Validate ObjectId
-//         if (!ObjectId.isValid(id)) {
-//             return NextResponse.json(
-//                 { error: 'Invalid tenant ID format' },
-//                 { status: 400 }
-//             );
-//         }
-        
-//         const { db } = await connectToDatabase();
-        
-//         // Check if tenant exists
-//         const existingTenant = await db.collection('tenants').findOne({
-//             _id: new ObjectId(id),
-//             companyId: new ObjectId(companyId)
-//         });
-        
-//         if (!existingTenant) {
-//             return NextResponse.json(
-//                 { error: 'Tenant not found' },
-//                 { status: 404 }
-//             );
-//         }
-        
-//         // Soft delete
-//         const result = await db.collection('tenants').updateOne(
-//             {
-//                 _id: new ObjectId(id),
-//                 companyId: new ObjectId(companyId)
-//             },
-//             {
-//                 $set: {
-//                     status: 'deleted',
-//                     deletedAt: new Date(),
-//                     deletedBy: new ObjectId(userId),
-//                     updatedAt: new Date()
-//                 },
-//                 $push: {
-//                     auditTrail: {
-//                         action: 'DELETE',
-//                         userId: new ObjectId(userId),
-//                         timestamp: new Date(),
-//                         ip: request.headers.get('x-forwarded-for') || null
-//                     }
-//                 }
-//             }
-//         );
-        
-//         if (result.matchedCount === 0) {
-//             return NextResponse.json(
-//                 { error: 'Tenant not found' },
-//                 { status: 404 }
-//             );
-//         }
-        
-//         // Update user stats
-//         await db.collection('users').updateOne(
-//             { _id: new ObjectId(userId) },
-//             { 
-//                 $inc: { 'stats.totalTenants': -1 },
-//                 $set: { updatedAt: new Date() }
-//             }
-//         );
-        
-//         return NextResponse.json({
-//             success: true,
-//             message: 'Tenant deleted successfully'
-//         });
-        
-//     } catch (error) {
-//         console.error('Delete tenant error:', error);
-        
-//         if (error.message.includes('Authentication')) {
-//             return NextResponse.json(
-//                 { error: 'Authentication required' },
-//                 { status: 401 }
-//             );
-//         }
-        
-//         return NextResponse.json(
-//             { error: 'Failed to delete tenant' },
-//             { status: 500 }
-//         );
-//     }
-// }
-
-
-// code before saas product 
-// import { NextResponse } from 'next/server';
-// import { ObjectId } from 'mongodb';
-// import { connectToDatabase } from '@/app/lib/mongodb';
-
-// // GET single tenant
-// export async function GET(request, { params }) {
-//     try {
-//         // Await the params promise
-//         const { id } = await params;
-//         console.log(`🔍 GET /api/tenants/${id}`);
-        
-//         // Validate ObjectId
-//         if (!ObjectId.isValid(id)) {
-//             return NextResponse.json(
-//                 { 
-//                     success: false,
-//                     error: 'Invalid tenant ID format' 
-//                 },
-//                 { status: 400 }
-//             );
-//         }
-        
-//         const { db } = await connectToDatabase();
-        
-//         const tenant = await db.collection('tenants').findOne({
-//             _id: new ObjectId(id)
-//         });
-        
-//         if (!tenant) {
-//             return NextResponse.json(
-//                 { 
-//                     success: false,
-//                     error: 'Tenant not found' 
-//                 },
-//                 { status: 404 }
-//             );
-//         }
-        
-//         return NextResponse.json(tenant);
-        
-//     } catch (error) {
-//         console.error('Error fetching tenant:', error);
-//         return NextResponse.json(
-//             { 
-//                 success: false,
-//                 error: 'Failed to fetch tenant',
-//                 message: error.message 
-//             },
-//             { status: 500 }
-//         );
-//     }
-// }
-
-// // PUT update tenant
-// export async function PUT(request, { params }) {
-//     try {
-//         // Await the params promise
-//         const { id } = await params;
-//         console.log(`✏️ PUT /api/tenants/${id}`);
-        
-//         // Validate ObjectId
-//         if (!ObjectId.isValid(id)) {
-//             return NextResponse.json(
-//                 { 
-//                     success: false,
-//                     error: 'Invalid tenant ID format' 
-//                 },
-//                 { status: 400 }
-//             );
-//         }
-        
-//         const updateData = await request.json();
-        
-//         // Remove _id from update data if present
-//         delete updateData._id;
-        
-//         const { db } = await connectToDatabase();
-        
-//         // Check if tenant exists
-//         const existingTenant = await db.collection('tenants').findOne({
-//             _id: new ObjectId(id)
-//         });
-        
-//         if (!existingTenant) {
-//             return NextResponse.json(
-//                 { 
-//                     success: false,
-//                     error: 'Tenant not found' 
-//                 },
-//                 { status: 404 }
-//             );
-//         }
-        
-//         // If email is being updated, check for duplicates
-//         if (updateData.email && updateData.email !== existingTenant.email) {
-//             const duplicateTenant = await db.collection('tenants').findOne({
-//                 email: updateData.email,
-//                 _id: { $ne: new ObjectId(id) }
-//             });
-            
-//             if (duplicateTenant) {
-//                 return NextResponse.json(
-//                     { 
-//                         success: false,
-//                         error: 'Duplicate email' 
-//                     },
-//                     { status: 409 }
-//                 );
-//             }
-//         }
-        
-//         // Prepare update object
-//         const updateObject = {
-//             $set: {
-//                 ...updateData,
-//                 updatedAt: new Date()
-//             }
-//         };
-        
-//         // Convert numeric fields if present
-//         if (updateData.rentAmount) {
-//             updateObject.$set.rentAmount = parseFloat(updateData.rentAmount);
-//         }
-//         if (updateData.securityDeposit) {
-//             updateObject.$set.securityDeposit = parseFloat(updateData.securityDeposit);
-//         }
-//         if (updateData.rentDueDay) {
-//             updateObject.$set.rentDueDay = parseInt(updateData.rentDueDay);
-//         }
-        
-//         // Update tenant
-//         const updateResult = await db.collection('tenants').updateOne(
-//             { _id: new ObjectId(id) },
-//             updateObject
-//         );
-        
-//         if (updateResult.matchedCount === 0) {
-//             return NextResponse.json(
-//                 { 
-//                     success: false,
-//                     error: 'Update failed' 
-//                 },
-//                 { status: 400 }
-//             );
-//         }
-        
-//         // Get updated tenant
-//         const updatedTenant = await db.collection('tenants').findOne({
-//             _id: new ObjectId(id)
-//         });
-        
-//         return NextResponse.json({
-//             success: true,
-//             message: 'Tenant updated successfully',
-//             data: updatedTenant
-//         });
-        
-//     } catch (error) {
-//         console.error('Error updating tenant:', error);
-//         return NextResponse.json(
-//             { 
-//                 success: false,
-//                 error: 'Failed to update tenant',
-//                 message: error.message 
-//             },
-//             { status: 500 }
-//         );
-//     }
-// }
-
-// // DELETE tenant
-// export async function DELETE(request, { params }) {
-//     try {
-//         // Await the params promise
-//         const { id } = await params;
-//         console.log(`🗑️ DELETE /api/tenants/${id}`);
-        
-//         // Validate ObjectId
-//         if (!ObjectId.isValid(id)) {
-//             return NextResponse.json(
-//                 { 
-//                     success: false,
-//                     error: 'Invalid tenant ID format' 
-//                 },
-//                 { status: 400 }
-//             );
-//         }
-        
-//         const { db } = await connectToDatabase();
-        
-//         // Check if tenant exists
-//         const existingTenant = await db.collection('tenants').findOne({
-//             _id: new ObjectId(id)
-//         });
-        
-//         if (!existingTenant) {
-//             return NextResponse.json(
-//                 { 
-//                     success: false,
-//                     error: 'Tenant not found' 
-//                 },
-//                 { status: 404 }
-//             );
-//         }
-        
-//         // Option 1: Soft delete (recommended)
-//         const deleteResult = await db.collection('tenants').updateOne(
-//             { _id: new ObjectId(id) },
-//             {
-//                 $set: {
-//                     status: 'deleted',
-//                     deletedAt: new Date(),
-//                     updatedAt: new Date()
-//                 }
-//             }
-//         );
-        
-//         // Option 2: Hard delete (permanent)
-//         // const deleteResult = await db.collection('tenants').deleteOne({
-//         //     _id: new ObjectId(id)
-//         // });
-        
-//         if (deleteResult.matchedCount === 0) {
-//             return NextResponse.json(
-//                 { 
-//                     success: false,
-//                     error: 'Delete failed' 
-//                 },
-//                 { status: 400 }
-//             );
-//         }
-        
-//         return NextResponse.json({
-//             success: true,
-//             message: 'Tenant deleted successfully'
-//         });
-        
-//     } catch (error) {
-//         console.error('Error deleting tenant:', error);
-//         return NextResponse.json(
-//             { 
-//                 success: false,
-//                 error: 'Failed to delete tenant',
-//                 message: error.message 
-//             },
-//             { status: 500 }
-//         );
-//     }
-// }
