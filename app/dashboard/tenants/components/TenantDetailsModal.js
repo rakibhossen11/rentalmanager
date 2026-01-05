@@ -1,30 +1,47 @@
 // app/dashboard/tenants/components/TenantDetailsModal.jsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  X, 
-  User, 
-  Mail, 
-  Phone, 
-  Calendar, 
-  DollarSign, 
-  Home, 
-  MapPin,
-  Edit, 
-  Trash2,
-  Building,
-  Briefcase,
-  FileText,
-  CreditCard,
-  AlertCircle
+  X, User, Mail, Phone, Calendar, DollarSign, Home, 
+  MapPin, Edit, Trash2, Building, FileText, CreditCard, 
+  AlertCircle, Clock, Save, Download, Send, MessageSquare,
+  Shield, ExternalLink, Upload, Image, CheckCircle, Eye,
+  Users, Wallet, Receipt, History, Key, Smartphone, Globe,
+  Briefcase, Map, Star, Flag, Package, Wifi, Car, Dog, Cat
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
-export default function TenantDetailsModal({ tenant, property, onClose, onUpdate, onDelete }) {
+export default function TenantDetailsModal({ 
+  tenant, 
+  property,
+  onClose, 
+  onUpdate,
+  onDelete,
+  mode = 'view'
+}) {
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [editMode, setEditMode] = useState(mode === 'edit');
+  const [formData, setFormData] = useState(tenant);
+  console.log(tenant._id);
+
+  useEffect(() => {
+    setFormData(tenant);
+  }, [tenant]);
+
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: User },
+    { id: 'personal', label: 'Personal Info', icon: User },
+    { id: 'lease', label: 'Lease Details', icon: FileText },
+    { id: 'financial', label: 'Financial', icon: CreditCard },
+    { id: 'emergency', label: 'Emergency', icon: AlertCircle },
+    { id: 'documents', label: 'Documents', icon: Shield },
+    { id: 'history', label: 'History', icon: History }
+  ];
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return 'Not set';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -40,234 +57,669 @@ export default function TenantDetailsModal({ tenant, property, onClose, onUpdate
     }).format(amount);
   };
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: User },
-    { id: 'lease', label: 'Lease', icon: FileText },
-    { id: 'financial', label: 'Financial', icon: CreditCard }
-  ];
+  const calculateDaysUntil = (dateString) => {
+    if (!dateString) return null;
+    const target = new Date(dateString);
+    const today = new Date();
+    const diffTime = target - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handlePersonalInfoChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        [name]: value
+      }
+    }));
+  };
+
+  const handleLeaseChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      lease: {
+        ...prev.lease,
+        [name]: value
+      }
+    }));
+  };
+
+  const handleUpdate = async () => {
+    console.log('uupdate btn click',tenant._id);
+    try {
+      setLoading(true);
+      const id = tenant._id;
+      console.log('tenant id',id);
+      const res = await fetch(`/api/tenants/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update tenant');
+      }
+
+      toast.success('Tenant updated successfully');
+      onUpdate(data.tenant);
+      setEditMode(false);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this tenant? All associated data will be removed.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await onDelete(tenant._id);
+      toast.success('Tenant deleted successfully');
+      onClose();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderOverview = () => (
+    <div className="space-y-6">
+      {/* Status & Quick Info */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-medium text-gray-900">Lease Status</h4>
+            <span className={`px-2 py-1 text-xs rounded-full ${
+              tenant.lease?.status === 'active' ? 'bg-green-100 text-green-800' :
+              tenant.lease?.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+              'bg-red-100 text-red-800'
+            }`}>
+              {tenant.lease?.status?.toUpperCase() || 'N/A'}
+            </span>
+          </div>
+          <div className="text-2xl font-bold text-gray-900">
+            {formatCurrency(tenant.lease?.monthlyRent)}
+          </div>
+          <div className="text-sm text-gray-500">Monthly Rent</div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-medium text-gray-900">Balance</h4>
+            <AlertCircle className="w-4 h-4 text-gray-400" />
+          </div>
+          <div className={`text-2xl font-bold ${
+            (tenant.financial?.currentBalance || 0) > 0 ? 'text-red-600' : 'text-green-600'
+          }`}>
+            {formatCurrency(tenant.financial?.currentBalance)}
+          </div>
+          <div className="text-sm text-gray-500">Current Balance</div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-medium text-gray-900">Next Payment</h4>
+            <Calendar className="w-4 h-4 text-gray-400" />
+          </div>
+          <div className="text-lg font-bold text-gray-900">
+            {formatDate(tenant.financial?.nextPaymentDue)}
+          </div>
+          <div className="text-sm text-gray-500">
+            {(() => {
+              const days = calculateDaysUntil(tenant.financial?.nextPaymentDue);
+              if (days === null) return 'No date set';
+              if (days < 0) return `${Math.abs(days)} days overdue`;
+              if (days === 0) return 'Due today';
+              return `In ${days} days`;
+            })()}
+          </div>
+        </div>
+      </div>
+
+      {/* Property Info Card */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-medium text-gray-900">Current Property</h4>
+          <Home className="w-5 h-5 text-blue-600" />
+        </div>
+        {property ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-900 font-medium">{property.name}</span>
+              <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                {property.type}
+              </span>
+            </div>
+            <div className="text-sm text-gray-600">
+              {property.address?.street}, {property.address?.city}, {property.address?.state} {property.address?.zipCode}
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <div>
+                <span className="text-gray-500">Unit: </span>
+                <span className="font-medium">{tenant.unit || 'N/A'}</span>
+              </div>
+              <button className="text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                <ExternalLink className="w-4 h-4" />
+                View Property
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-4">
+            <Home className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+            <p className="text-gray-600">No property assigned</p>
+          </div>
+        )}
+      </div>
+
+      {/* Contact Information */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <h4 className="font-medium text-gray-900 mb-3">Contact Information</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <Mail className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Email</div>
+              <div className="font-medium text-gray-900">{tenant.personalInfo?.email || 'N/A'}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-50 rounded-lg">
+              <Phone className="w-4 h-4 text-green-600" />
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Phone</div>
+              <div className="font-medium text-gray-900">{tenant.personalInfo?.phone || 'N/A'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-gray-50">
+          <Send className="w-6 h-6 text-blue-600 mb-2" />
+          <span className="text-sm font-medium">Send Message</span>
+        </button>
+        <button className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-gray-50">
+          <Receipt className="w-6 h-6 text-green-600 mb-2" />
+          <span className="text-sm font-medium">Record Payment</span>
+        </button>
+        <button className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-gray-50">
+          <FileText className="w-6 h-6 text-purple-600 mb-2" />
+          <span className="text-sm font-medium">View Lease</span>
+        </button>
+        <button className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-xl hover:bg-gray-50">
+          <MessageSquare className="w-6 h-6 text-orange-600 mb-2" />
+          <span className="text-sm font-medium">Send Reminder</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderPersonalInfo = () => (
+    <div className="space-y-6">
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h4 className="text-lg font-medium text-gray-900 mb-4">Personal Details</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+            {editMode ? (
+              <input
+                type="text"
+                name="fullName"
+                value={formData.personalInfo?.fullName || ''}
+                onChange={handlePersonalInfoChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            ) : (
+              <p className="text-gray-900">{tenant.personalInfo?.fullName || 'N/A'}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+            {editMode ? (
+              <input
+                type="email"
+                name="email"
+                value={formData.personalInfo?.email || ''}
+                onChange={handlePersonalInfoChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-gray-400" />
+                <p className="text-gray-900">{tenant.personalInfo?.email || 'N/A'}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+            {editMode ? (
+              <input
+                type="tel"
+                name="phone"
+                value={formData.personalInfo?.phone || ''}
+                onChange={handlePersonalInfoChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-gray-400" />
+                <p className="text-gray-900">{tenant.personalInfo?.phone || 'N/A'}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+            {editMode ? (
+              <input
+                type="date"
+                name="dateOfBirth"
+                value={formData.personalInfo?.dateOfBirth ? new Date(formData.personalInfo.dateOfBirth).toISOString().split('T')[0] : ''}
+                onChange={handlePersonalInfoChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <p className="text-gray-900">{formatDate(tenant.personalInfo?.dateOfBirth)}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Occupation</label>
+            {editMode ? (
+              <input
+                type="text"
+                name="occupation"
+                value={formData.personalInfo?.occupation || ''}
+                onChange={handlePersonalInfoChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-gray-400" />
+                <p className="text-gray-900">{tenant.personalInfo?.occupation || 'N/A'}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Employer</label>
+            {editMode ? (
+              <input
+                type="text"
+                name="employer"
+                value={formData.personalInfo?.employer || ''}
+                onChange={handlePersonalInfoChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            ) : (
+              <p className="text-gray-900">{tenant.personalInfo?.employer || 'N/A'}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderLeaseDetails = () => (
+    <div className="space-y-6">
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h4 className="text-lg font-medium text-gray-900">Lease Information</h4>
+          <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+            {tenant.lease?.leaseType || 'Standard Lease'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Lease Start Date</label>
+            {editMode ? (
+              <input
+                type="date"
+                name="startDate"
+                value={formData.lease?.startDate ? new Date(formData.lease.startDate).toISOString().split('T')[0] : ''}
+                onChange={handleLeaseChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <p className="text-gray-900">{formatDate(tenant.lease?.startDate)}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Lease End Date</label>
+            {editMode ? (
+              <input
+                type="date"
+                name="endDate"
+                value={formData.lease?.endDate ? new Date(formData.lease.endDate).toISOString().split('T')[0] : ''}
+                onChange={handleLeaseChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <p className="text-gray-900">{formatDate(tenant.lease?.endDate)}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Rent</label>
+            {editMode ? (
+              <input
+                type="number"
+                name="monthlyRent"
+                value={formData.lease?.monthlyRent || ''}
+                onChange={handleLeaseChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-gray-400" />
+                <p className="text-gray-900 font-medium">{formatCurrency(tenant.lease?.monthlyRent)}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Security Deposit</label>
+            {editMode ? (
+              <input
+                type="number"
+                name="securityDeposit"
+                value={formData.lease?.securityDeposit || ''}
+                onChange={handleLeaseChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-gray-400" />
+                <p className="text-gray-900">{formatCurrency(tenant.lease?.securityDeposit)}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Lease Status</label>
+            {editMode ? (
+              <select
+                name="status"
+                value={formData.lease?.status || ''}
+                onChange={handleLeaseChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+                <option value="expired">Expired</option>
+                <option value="terminated">Terminated</option>
+              </select>
+            ) : (
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                tenant.lease?.status === 'active' ? 'bg-green-100 text-green-800' :
+                tenant.lease?.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-red-100 text-red-800'
+              }`}>
+                {tenant.lease?.status?.toUpperCase()}
+              </span>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Payment Day</label>
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-gray-400" />
+              <p className="text-gray-900">Day {tenant.lease?.paymentDay || '1'} of each month</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pets & Vehicles */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Dog className="w-5 h-5 text-gray-600" />
+            <h4 className="font-medium text-gray-900">Pets</h4>
+          </div>
+          {tenant.personalInfo?.pets?.length > 0 ? (
+            <div className="space-y-2">
+              {tenant.personalInfo.pets.map((pet, index) => (
+                <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span className="font-medium">{pet.type}: {pet.name}</span>
+                  <span className="text-sm text-gray-500">{pet.breed}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">No pets registered</p>
+          )}
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Car className="w-5 h-5 text-gray-600" />
+            <h4 className="font-medium text-gray-900">Vehicles</h4>
+          </div>
+          {tenant.personalInfo?.vehicles?.length > 0 ? (
+            <div className="space-y-2">
+              {tenant.personalInfo.vehicles.map((vehicle, index) => (
+                <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span className="font-medium">{vehicle.make} {vehicle.model}</span>
+                  <span className="text-sm text-gray-500">{vehicle.licensePlate}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">No vehicles registered</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   const renderTabContent = () => {
     switch (activeTab) {
       case 'overview':
-        return (
-          <div className="space-y-6">
-            {/* Personal Info */}
-            <div>
-              <h4 className="text-lg font-medium text-gray-900 mb-4">Personal Information</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Full Name</label>
-                  <p className="text-gray-900">{tenant.personalInfo?.fullName || 'N/A'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Email</label>
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-gray-400" />
-                    <p className="text-gray-900">{tenant.personalInfo?.email || 'N/A'}</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Phone</label>
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <p className="text-gray-900">{tenant.personalInfo?.phone || 'N/A'}</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Date of Birth</label>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <p className="text-gray-900">{formatDate(tenant.personalInfo?.dateOfBirth)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Property Info */}
-            <div>
-              <h4 className="text-lg font-medium text-gray-900 mb-4">Property Information</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Property</label>
-                  <div className="flex items-center gap-2">
-                    <Home className="h-4 w-4 text-gray-400" />
-                    <p className="text-gray-900">{property?.name || 'No Property Assigned'}</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Unit</label>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    <p className="text-gray-900">{tenant.unit || 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
+        return renderOverview();
+      case 'personal':
+        return renderPersonalInfo();
       case 'lease':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h4 className="text-lg font-medium text-gray-900 mb-4">Lease Details</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Start Date</label>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <p className="text-gray-900">{formatDate(tenant.lease?.startDate)}</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">End Date</label>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <p className="text-gray-900">{formatDate(tenant.lease?.endDate)}</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Monthly Rent</label>
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-gray-400" />
-                    <p className="text-gray-900 font-medium">{formatCurrency(tenant.lease?.monthlyRent)}</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Security Deposit</label>
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-gray-400" />
-                    <p className="text-gray-900">{formatCurrency(tenant.lease?.securityDeposit)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
+        return renderLeaseDetails();
       case 'financial':
         return (
           <div className="space-y-6">
-            <div>
-              <h4 className="text-lg font-medium text-gray-900 mb-4">Rent Status</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white border border-gray-200 rounded-xl p-6">
+              <h4 className="text-lg font-medium text-gray-900 mb-4">Payment Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Current Balance</label>
-                  <p className={`text-xl font-bold ${(tenant.rentStatus?.currentBalance || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {formatCurrency(tenant.rentStatus?.currentBalance)}
-                  </p>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Current Balance</label>
+                  <div className={`text-3xl font-bold ${
+                    (tenant.financial?.currentBalance || 0) > 0 ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    {formatCurrency(tenant.financial?.currentBalance)}
+                  </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Next Payment Due</label>
-                  <p className="text-gray-900">{formatDate(tenant.rentStatus?.nextPaymentDue)}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Last Payment Date</label>
-                  <p className="text-gray-900">{formatDate(tenant.rentStatus?.lastPaymentDate)}</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                    <CreditCard className="w-5 h-5 text-gray-600" />
+                    <span className="font-medium">{tenant.financial?.paymentMethod || 'Not specified'}</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         );
-
       default:
-        return null;
+        return renderOverview();
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black bg-opacity-50"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="relative bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto z-50">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <User className="h-6 w-6 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-900">
-                {tenant.personalInfo?.fullName}
-              </h3>
-              <div className="flex items-center gap-3 mt-1">
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                  tenant.status === 'active' 
-                    ? 'bg-green-100 text-green-800' 
-                    : tenant.status === 'inactive'
-                    ? 'bg-yellow-100 text-yellow-800'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {tenant.status?.charAt(0).toUpperCase() + tenant.status?.slice(1)}
-                </span>
-                <span className="text-sm text-gray-500">
-                  Since {formatDate(tenant.createdAt)}
-                </span>
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-screen p-4">
+        {/* Backdrop */}
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+          onClick={onClose}
+        />
+        
+        {/* Modal */}
+        <div 
+          className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+                  <User className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {tenant.personalInfo?.fullName}
+                  </h2>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-sm text-gray-500">
+                      {tenant.personalInfo?.email}
+                    </span>
+                    <span className="text-gray-300">•</span>
+                    <span className="text-sm text-gray-500">
+                      {tenant.unit || 'No Unit'} • {property?.name || 'No Property'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {editMode ? (
+                  <>
+                    <button
+                      onClick={() => setEditMode(false)}
+                      className="px-3 py-1.5 text-gray-700 hover:bg-gray-100 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleUpdate}
+                      disabled={loading}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                    >
+                      {loading ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      Save Changes
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setEditMode(true)}
+                      className="px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-2"
+                    >
+                      <Edit className="w-4 h-4" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={onClose}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onDelete(tenant._id)}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </button>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <X className="h-5 w-5 text-gray-500" />
-            </button>
-          </div>
-        </div>
 
-        {/* Tabs */}
-        <div className="border-b border-gray-200 px-6">
-          <nav className="flex space-x-8">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          {/* Tabs */}
+          <div className="border-b border-gray-200 px-6">
+            <div className="flex space-x-4 overflow-x-auto">
+              {tabs.map(tab => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === tab.id
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-        
-        {/* Content */}
-        <div className="p-6 max-h-[50vh] overflow-y-auto">
-          {renderTabContent()}
-        </div>
-        
-        {/* Footer */}
-        <div className="sticky bottom-0 bg-white border-t px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-500">
-              Tenant ID: {tenant._id}
+                  >
+                    <Icon className="w-4 h-4 inline mr-2" />
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
-            <div className="flex gap-3">
-              <button className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
-                Send Reminder
-              </button>
-              <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                Record Payment
-              </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+            {renderTabContent()}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Tenant ID:</span> {tenant._id}
+                <span className="mx-2">•</span>
+                <span>Created: {formatDate(tenant.createdAt)}</span>
+              </div>
+              <div className="flex gap-3">
+                <button className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
+                  <Send className="w-4 h-4" />
+                  Send Message
+                </button>
+                <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                  <Receipt className="w-4 h-4" />
+                  Record Payment
+                </button>
+              </div>
             </div>
           </div>
         </div>
