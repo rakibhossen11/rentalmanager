@@ -9,6 +9,7 @@ const AuthContext = createContext({});
 
 export default function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
+    // console.log(user);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
     const pathname = usePathname();
@@ -82,6 +83,7 @@ export default function AuthProvider({ children }) {
 
     // Login function
     const login = async (email, password) => {
+        // console.log(email, password);
         try {
             const res = await fetch('/api/auth/login', {
                 method: 'POST',
@@ -90,6 +92,7 @@ export default function AuthProvider({ children }) {
             });
 
             const data = await res.json();
+            // console.log(data);
 
             if (res.ok && data.user) {
                 setUser(data.user);
