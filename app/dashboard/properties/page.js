@@ -45,6 +45,7 @@ export default function PropertiesPage() {
       }).toString();
       
       const res = await fetch(`/api/properties?${queryParams}`);
+      console.log(res);
       if (res.ok) {
         const data = await res.json();
         setProperties(data.properties || []);

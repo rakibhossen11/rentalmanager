@@ -32,6 +32,7 @@ export default function PropertyDetailsPage() {
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [property, setProperty] = useState(null);
+  console.log(property);
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedSections, setExpandedSections] = useState({
     details: true,
@@ -379,7 +380,8 @@ export default function PropertyDetailsPage() {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          {propertyId && <PropertyPDFGenerator propertyId={propertyId} />}
+          {/* {propertyId && <PropertyPDFGenerator propertyId={propertyId} />} */}
+          <PropertyPDFGenerator property={property} />
           
           {editMode && (
             <button
