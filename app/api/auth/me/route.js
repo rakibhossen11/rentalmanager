@@ -8,7 +8,7 @@ export async function GET(request) {
     // Get session token from request cookies
     const sessionToken = request.cookies.get('session_token')?.value;
     
-    console.log('Session token from request:', sessionToken ? 'Found' : 'Not found');
+    // console.log('Session token from request:', sessionToken ? 'Found' : 'Not found');
     
     if (!sessionToken) {
       return NextResponse.json(
@@ -121,7 +121,7 @@ export async function GET(request) {
       subscription: user.subscription || { plan: 'free', status: 'active' },
       stats: user.stats || {}
     };
-    console.log(userData);
+    // console.log(userData);
 
     // Create response with updated cookie
     const response = NextResponse.json({ 

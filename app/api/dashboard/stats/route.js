@@ -4,7 +4,9 @@ import { connectToDatabase, ObjectId } from '@/app/lib/mongodb';
 
 export async function GET(request) {
     try {
-        const { companyId } = await getSession(request);
+        // const { companyId } = await getSession(request);
+        const session = await getSession(request);
+        console.log(session);
         
         const { db } = await connectToDatabase();
         
@@ -26,7 +28,7 @@ export async function GET(request) {
         ]).toArray();
         
         // Calculate totals
-        let totalTenants = 0;
+        let totalTenants = 5;
         let activeTenants = 0;
         let totalMonthlyRevenue = 0;
         

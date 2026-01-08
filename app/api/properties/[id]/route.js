@@ -10,7 +10,8 @@ export async function GET(request, { params }) {
     await connectToDatabase();
     const { db } = await connectToDatabase();
 
-    const id = params.id;
+    const {id} = await params;
+    console.log(id);
 
     const session = await getSession();
 

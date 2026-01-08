@@ -99,7 +99,7 @@ export default function PropertyCard({ property, onDelete }) {
           <div className="absolute bottom-4 left-4">
             <span className="px-3 py-1 bg-white/90 rounded-full text-sm font-medium text-gray-800">
               {property.type}
-            </span>
+            </span> 
           </div>
         </div>
 

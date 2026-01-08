@@ -21,7 +21,8 @@ import {
   CalendarIcon,
   ShieldCheckIcon,
   XMarkIcon,
-  Bars3Icon
+  Bars3Icon,
+  UserIcon
 } from '@heroicons/react/24/outline';
 
 const SideNav = () => {
@@ -62,12 +63,12 @@ const SideNav = () => {
   }, [mobileOpen]);
 
   const navItems = [
-    {
-      name: 'Dashboard',
-      href: '/dashboard',
-      icon: HomeIcon,
-      description: 'Overview and analytics'
-    },
+    // {
+    //   name: 'Dashboard',
+    //   href: '/dashboard',
+    //   icon: HomeIcon,
+    //   description: 'Overview and analytics'
+    // },
     // {
     //   name: 'Users',
     //   href: '/users',
@@ -91,26 +92,33 @@ const SideNav = () => {
       count: 24
     },
     {
-      name: 'Analytics',
-      href: '/dashboard/analytics',
-      icon: ChartBarIcon,
-      description: 'Reports & insights'
+      name: 'Profile',
+      href: '/dashboard/profile',
+      icon: UserCircleIcon,
+      description: 'Account Profile',
+      count: 24
     },
-    {
-      name: 'Settings',
-      href: '/dashboard/settings',
-      icon: Cog6ToothIcon,
-      description: 'System configuration'
-    }
+    // {
+    //   name: 'Analytics',
+    //   href: '/dashboard/analytics',
+    //   icon: ChartBarIcon,
+    //   description: 'Reports & insights'
+    // },
+    // {
+    //   name: 'Settings',
+    //   href: '/dashboard/settings',
+    //   icon: Cog6ToothIcon,
+    //   description: 'System configuration'
+    // }
   ];
 
   const secondaryItems = [
-    {
-      name: 'Notifications',
-      href: '/dashboard/notifications',
-      icon: BellIcon,
-      count: 3
-    },
+    // {
+    //   name: 'Notifications',
+    //   href: '/dashboard/notifications',
+    //   icon: BellIcon,
+    //   count: 3
+    // },
     {
       name: 'Support',
       href: '/dashboard/support',
@@ -132,18 +140,18 @@ const SideNav = () => {
       icon: HomeModernIcon,
       color: 'bg-green-500 hover:bg-green-600'
     },
-    {
-      name: 'Collect Rent',
-      href: '/dashboard/payments/collect',
-      icon: WalletIcon,
-      color: 'bg-purple-500 hover:bg-purple-600'
-    },
-    {
-      name: 'Maintenance',
-      href: '/dashboard/maintenance',
-      icon: Cog6ToothIcon,
-      color: 'bg-orange-500 hover:bg-orange-600'
-    }
+    // {
+    //   name: 'Collect Rent',
+    //   href: '/dashboard/payments/collect',
+    //   icon: WalletIcon,
+    //   color: 'bg-purple-500 hover:bg-purple-600'
+    // },
+    // {
+    //   name: 'Maintenance',
+    //   href: '/dashboard/maintenance',
+    //   icon: Cog6ToothIcon,
+    //   color: 'bg-orange-500 hover:bg-orange-600'
+    // }
   ];
 
   const isActive = (href) => {
