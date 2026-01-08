@@ -121,6 +121,7 @@ export async function GET(request) {
       subscription: user.subscription || { plan: 'free', status: 'active' },
       stats: user.stats || {}
     };
+    console.log(userData);
 
     // Create response with updated cookie
     const response = NextResponse.json({ 
