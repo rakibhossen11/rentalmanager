@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, verifyPassword, hashPassword } from '@/lib/auth';
-import { connectToDatabase, ObjectId } from '@/lib/mongodb';
+import { requireAuth, verifyPassword, hashPassword } from '@/app/lib/middleware/auth';
+import { connectToDatabase, ObjectId } from '@/app/lib/mongodb';
 
 export async function PUT(request) {
     try {

@@ -63,19 +63,6 @@ const SideNav = () => {
   }, [mobileOpen]);
 
   const navItems = [
-    // {
-    //   name: 'Dashboard',
-    //   href: '/dashboard',
-    //   icon: HomeIcon,
-    //   description: 'Overview and analytics'
-    // },
-    // {
-    //   name: 'Users',
-    //   href: '/users',
-    //   icon: UsersIcon,
-    //   description: 'Manage system users',
-    //   count: 45
-    // },
     {
       name: 'Tenants',
       href: '/dashboard/tenants',
@@ -98,27 +85,9 @@ const SideNav = () => {
       description: 'Account Profile',
       count: 24
     },
-    // {
-    //   name: 'Analytics',
-    //   href: '/dashboard/analytics',
-    //   icon: ChartBarIcon,
-    //   description: 'Reports & insights'
-    // },
-    // {
-    //   name: 'Settings',
-    //   href: '/dashboard/settings',
-    //   icon: Cog6ToothIcon,
-    //   description: 'System configuration'
-    // }
   ];
 
   const secondaryItems = [
-    // {
-    //   name: 'Notifications',
-    //   href: '/dashboard/notifications',
-    //   icon: BellIcon,
-    //   count: 3
-    // },
     {
       name: 'Support',
       href: '/dashboard/support',
@@ -140,18 +109,6 @@ const SideNav = () => {
       icon: HomeModernIcon,
       color: 'bg-green-500 hover:bg-green-600'
     },
-    // {
-    //   name: 'Collect Rent',
-    //   href: '/dashboard/payments/collect',
-    //   icon: WalletIcon,
-    //   color: 'bg-purple-500 hover:bg-purple-600'
-    // },
-    // {
-    //   name: 'Maintenance',
-    //   href: '/dashboard/maintenance',
-    //   icon: Cog6ToothIcon,
-    //   color: 'bg-orange-500 hover:bg-orange-600'
-    // }
   ];
 
   const isActive = (href) => {
@@ -186,6 +143,7 @@ const SideNav = () => {
         onClick={toggleMobileSidebar}
         aria-label={mobileOpen ? "Close menu" : "Open menu"}
         className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg"
+        style={{ fontFamily: 'Arial' }}
       >
         {mobileOpen ? (
           <XMarkIcon className="h-6 w-6" />
@@ -218,6 +176,7 @@ const SideNav = () => {
           shadow-2xl
         `}
         aria-label="Sidebar navigation"
+        style={{ fontFamily: 'Arial' }}
       >
         {/* Logo and Collapse Button */}
         <div className="p-4 border-b border-gray-700 flex items-center justify-between sticky top-0 bg-gray-900">
@@ -231,8 +190,8 @@ const SideNav = () => {
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <h1 className="text-xl font-bold truncate">RentalManager</h1>
-                <p className="text-xs text-gray-400 truncate">Professional Admin</p>
+                <h1 className="text-xl font-bold truncate" style={{ fontSize: '17px', fontWeight: 700 }}>RentalManager</h1>
+                <p className="text-xs text-gray-400 truncate" style={{ fontSize: '11px', fontWeight: 400 }}>Professional Admin</p>
               </div>
             )}
           </Link>
@@ -261,8 +220,8 @@ const SideNav = () => {
             </div>
             {!collapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Rakib Hossen</p>
-                <p className="text-xs text-gray-400 truncate">rakib@example.com</p>
+                <p className="text-sm font-medium truncate" style={{ fontSize: '14px', fontWeight: 400 }}>Rakib Hossen</p>
+                <p className="text-xs text-gray-400 truncate" style={{ fontSize: '11px', fontWeight: 400 }}>rakib@example.com</p>
               </div>
             )}
           </div>
@@ -274,7 +233,8 @@ const SideNav = () => {
             text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3
             ${collapsed ? 'text-center' : ''}
             truncate
-          `}>
+          `}
+          style={{ fontSize: '11px', fontWeight: 400 }}>
             {collapsed ? 'Actions' : 'Quick Actions'}
           </h3>
           <div className={`grid ${collapsed ? 'grid-cols-1 gap-1' : 'grid-cols-2 gap-2'}`}>
@@ -292,7 +252,7 @@ const SideNav = () => {
               >
                 <action.icon className={`${collapsed ? 'h-4 w-4' : 'h-5 w-5 mr-2'} text-white`} />
                 {!collapsed && (
-                  <span className="text-xs font-medium text-white truncate">
+                  <span className="text-xs font-medium text-white truncate" style={{ fontSize: '12px', fontWeight: 400 }}>
                     {action.name}
                   </span>
                 )}
@@ -306,7 +266,8 @@ const SideNav = () => {
           <h3 className={`
             text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3
             ${collapsed ? 'text-center' : ''}
-          `}>
+          `}
+          style={{ fontSize: '11px', fontWeight: 400 }}>
             {collapsed ? 'Menu' : 'Main Menu'}
           </h3>
           
@@ -339,9 +300,9 @@ const SideNav = () => {
                   </div>
                   {!collapsed && (
                     <div className="ml-3 min-w-0">
-                      <span className="font-medium truncate block">{item.name}</span>
+                      <span className="font-medium truncate block" style={{ fontSize: '14px', fontWeight: 400 }}>{item.name}</span>
                       {item.description && (
-                        <span className="text-xs text-gray-400 truncate block">
+                        <span className="text-xs text-gray-400 truncate block" style={{ fontSize: '11px', fontWeight: 400 }}>
                           {item.description}
                         </span>
                       )}
@@ -355,12 +316,13 @@ const SideNav = () => {
                       <span className={`
                         px-2 py-1 text-xs font-medium rounded-full min-w-[2rem] text-center
                         ${active ? 'bg-white text-indigo-600' : 'bg-gray-600 text-gray-300'}
-                      `}>
+                      `}
+                      style={{ fontSize: '11px', fontWeight: 400 }}>
                         {item.count}
                       </span>
                     )}
                     {item.badge && (
-                      <span className="px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
+                      <span className="px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full" style={{ fontSize: '11px', fontWeight: 400 }}>
                         {item.badge}
                       </span>
                     )}
@@ -369,7 +331,7 @@ const SideNav = () => {
                 
                 {/* Show count badge in collapsed state */}
                 {collapsed && item.count !== undefined && (
-                  <span className="absolute top-1 right-1 h-4 w-4 bg-red-500 text-xs rounded-full flex items-center justify-center">
+                  <span className="absolute top-1 right-1 h-4 w-4 bg-red-500 text-xs rounded-full flex items-center justify-center" style={{ fontSize: '10px', fontWeight: 400 }}>
                     {item.count > 9 ? '9+' : item.count}
                   </span>
                 )}
@@ -403,25 +365,25 @@ const SideNav = () => {
                   <div className="relative">
                     <item.icon className="h-5 w-5" />
                     {item.count !== undefined && !collapsed && (
-                      <span className="absolute -top-2 -right-2 h-5 w-5 bg-red-500 text-xs rounded-full flex items-center justify-center">
+                      <span className="absolute -top-2 -right-2 h-5 w-5 bg-red-500 text-xs rounded-full flex items-center justify-center" style={{ fontSize: '10px', fontWeight: 400 }}>
                         {item.count}
                       </span>
                     )}
                   </div>
                   {!collapsed && (
-                    <span className="ml-3">{item.name}</span>
+                    <span className="ml-3" style={{ fontSize: '14px', fontWeight: 400 }}>{item.name}</span>
                   )}
                 </div>
                 
                 {!collapsed && item.count !== undefined && (
-                  <span className="px-2 py-1 text-xs font-medium bg-red-500 text-white rounded-full">
+                  <span className="px-2 py-1 text-xs font-medium bg-red-500 text-white rounded-full" style={{ fontSize: '11px', fontWeight: 400 }}>
                     {item.count}
                   </span>
                 )}
                 
                 {/* Show count badge in collapsed state */}
                 {collapsed && item.count !== undefined && (
-                  <span className="absolute top-1 right-1 h-4 w-4 bg-red-500 text-xs rounded-full flex items-center justify-center">
+                  <span className="absolute top-1 right-1 h-4 w-4 bg-red-500 text-xs rounded-full flex items-center justify-center" style={{ fontSize: '10px', fontWeight: 400 }}>
                     {item.count}
                   </span>
                 )}
@@ -444,11 +406,11 @@ const SideNav = () => {
             <div className="flex items-center">
               <ArrowRightOnRectangleIcon className="h-5 w-5" />
               {!collapsed && (
-                <span className="ml-3 font-medium">Logout</span>
+                <span className="ml-3 font-medium" style={{ fontSize: '14px', fontWeight: 400 }}>Logout</span>
               )}
             </div>
             {!collapsed && (
-              <span className="text-xs text-gray-400">Ctrl+L</span>
+              <span className="text-xs text-gray-400" style={{ fontSize: '11px', fontWeight: 400 }}>Ctrl+L</span>
             )}
           </button>
         </div>
@@ -457,12 +419,12 @@ const SideNav = () => {
         <div className="p-4 border-t border-gray-700 bg-gray-800/30">
           <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
             {!collapsed && (
-              <span className="text-xs text-gray-400">System Status</span>
+              <span className="text-xs text-gray-400" style={{ fontSize: '11px', fontWeight: 400 }}>System Status</span>
             )}
             <div className="flex items-center space-x-1">
               <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
               {!collapsed && (
-                <span className="text-xs text-green-400">Online</span>
+                <span className="text-xs text-green-400" style={{ fontSize: '11px', fontWeight: 400 }}>Online</span>
               )}
             </div>
           </div>
@@ -474,7 +436,7 @@ const SideNav = () => {
                   style={{ width: '85%' }}
                 ></div>
               </div>
-              <p className="text-xs text-gray-400 mt-2 truncate">Last updated: Just now</p>
+              <p className="text-xs text-gray-400 mt-2 truncate" style={{ fontSize: '11px', fontWeight: 400 }}>Last updated: Just now</p>
             </>
           )}
         </div>

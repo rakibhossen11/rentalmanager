@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/session';
-import { connectToDatabase } from '@/lib/mongodb';
+import { getSession } from '@/app/lib/auth';
+import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
 
 // PUT - Update a payment

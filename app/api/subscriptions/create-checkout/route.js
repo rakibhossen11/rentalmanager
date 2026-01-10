@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
-import { connectToDatabase, ObjectId } from '@/lib/mongodb';
+import { requireAuth } from '@/app/lib/middleware/auth';
+import { connectToDatabase, ObjectId } from '@/app/lib/mongodb';
 import { createOrGetCustomer, createCheckoutSession, PRICES } from '@/lib/stripe';
 
 export async function POST(request) {

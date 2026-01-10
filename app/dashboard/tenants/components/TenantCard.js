@@ -74,14 +74,23 @@ export default function TenantCard({ tenant, onDelete }) {
               <User className="h-6 w-6 text-blue-600" />
             </div>
             <div>
-              <h3 className="font-bold text-gray-900">
+              <h3 
+                className="text-gray-900"
+                style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+              >
                 {tenant.personalInfo?.fullName || 'N/A'}
               </h3>
               <div className="flex items-center gap-2 mt-1">
-                <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(tenant.status)}`}>
+                <span 
+                  className={`px-2 py-1 rounded-full border ${getStatusColor(tenant.status)}`}
+                  style={{ fontSize: '12px', fontWeight: 400, fontFamily: 'Arial' }}
+                >
                   {tenant.status?.charAt(0).toUpperCase() + tenant.status?.slice(1)}
                 </span>
-                <span className={`px-2 py-1 text-xs rounded-full border ${paymentStatus.color}`}>
+                <span 
+                  className={`px-2 py-1 rounded-full border ${paymentStatus.color}`}
+                  style={{ fontSize: '12px', fontWeight: 400, fontFamily: 'Arial' }}
+                >
                   {paymentStatus.label}
                 </span>
               </div>
@@ -99,17 +108,24 @@ export default function TenantCard({ tenant, onDelete }) {
             {showActions && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
                 <div className="py-1">
-                  <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">
+                  <button 
+                    className="flex items-center gap-2 px-4 py-2 text-gray-400 hover:bg-gray-100 w-full text-left"
+                    style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+                  >
                     <Eye className="h-4 w-4" />
                     View Details
                   </button>
-                  <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">
+                  <button 
+                    className="flex items-center gap-2 px-4 py-2 text-gray-400 hover:bg-gray-100 w-full text-left"
+                    style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+                  >
                     <Edit className="h-4 w-4" />
                     Edit
                   </button>
                   <button
                     onClick={() => onDelete(tenant._id)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
+                    className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 w-full text-left"
+                    style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
                   >
                     <Trash2 className="h-4 w-4" />
                     Delete
@@ -123,13 +139,19 @@ export default function TenantCard({ tenant, onDelete }) {
         {/* Contact Info */}
         <div className="space-y-2">
           {tenant.personalInfo?.email && (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div 
+              className="flex items-center gap-2 text-gray-600"
+              style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+            >
               <Mail className="h-4 w-4" />
               <span className="truncate">{tenant.personalInfo.email}</span>
             </div>
           )}
           {tenant.personalInfo?.phone && (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div 
+              className="flex items-center gap-2 text-gray-600"
+              style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+            >
               <Phone className="h-4 w-4" />
               {tenant.personalInfo.phone}
             </div>
@@ -141,16 +163,32 @@ export default function TenantCard({ tenant, onDelete }) {
       <div className="p-6">
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <div className="text-sm text-gray-500 mb-1">Property</div>
-            <div className="flex items-center gap-2 font-medium text-gray-900">
+            <div 
+              className="text-gray-500 mb-1"
+              style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+            >
+              Property
+            </div>
+            <div 
+              className="flex items-center gap-2 text-gray-900"
+              style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+            >
               <Home className="h-4 w-4 text-gray-400" />
               <span>{tenant.property?.name || 'No Property'}</span>
             </div>
           </div>
           
           <div>
-            <div className="text-sm text-gray-500 mb-1">Unit</div>
-            <div className="flex items-center gap-2 font-medium text-gray-900">
+            <div 
+              className="text-gray-500 mb-1"
+              style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+            >
+              Unit
+            </div>
+            <div 
+              className="flex items-center gap-2 text-gray-900"
+              style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+            >
               <MapPin className="h-4 w-4 text-gray-400" />
               <span>{tenant.unit || 'N/A'}</span>
             </div>
@@ -159,16 +197,32 @@ export default function TenantCard({ tenant, onDelete }) {
         
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <div className="text-sm text-gray-500 mb-1">Monthly Rent</div>
-            <div className="flex items-center gap-2 font-bold text-gray-900">
+            <div 
+              className="text-gray-500 mb-1"
+              style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+            >
+              Monthly Rent
+            </div>
+            <div 
+              className="flex items-center gap-2 text-gray-900"
+              style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+            >
               <DollarSign className="h-4 w-4 text-gray-400" />
               {formatCurrency(tenant.lease?.monthlyRent)}
             </div>
           </div>
           
           <div>
-            <div className="text-sm text-gray-500 mb-1">Lease Start</div>
-            <div className="flex items-center gap-2 text-gray-900">
+            <div 
+              className="text-gray-500 mb-1"
+              style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+            >
+              Lease Start
+            </div>
+            <div 
+              className="flex items-center gap-2 text-gray-900"
+              style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+            >
               <Calendar className="h-4 w-4 text-gray-400" />
               {formatDate(tenant.lease?.startDate)}
             </div>
@@ -178,8 +232,11 @@ export default function TenantCard({ tenant, onDelete }) {
       
       {/* Footer */}
       <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
-        <div className="flex items-center justify-between text-sm text-gray-600">
-          <div className="flex items-center gap-2">
+        <div 
+          className="flex items-center justify-between text-gray-600"
+          style={{ fontSize: '14px', fontWeight: 400, fontFamily: 'Arial' }}
+        >
+          <div className="flex items-center gap-2" style={{ fontSize: '12px', fontFamily: 'Arial' }}>
             <Calendar className="h-4 w-4" />
             {tenant.rentStatus?.nextPaymentDue ? (
               <span>Next payment: {formatDate(tenant.rentStatus.nextPaymentDue)}</span>
@@ -187,7 +244,7 @@ export default function TenantCard({ tenant, onDelete }) {
               <span>No upcoming payments</span>
             )}
           </div>
-          <span className="text-xs">
+          <span style={{ fontSize: '12px', fontFamily: 'Arial' }}>
             Since {formatDate(tenant.createdAt)}
           </span>
         </div>

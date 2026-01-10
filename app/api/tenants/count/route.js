@@ -1,7 +1,7 @@
 // app/api/properties/count/route.js
 import { NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
-import { connectToDatabase } from '@/lib/mongodb';
+import { connectToDatabase } from '@/app/lib/mongodb';
 import { getSession } from '@/app/lib/auth';
 
 export async function GET(request) {

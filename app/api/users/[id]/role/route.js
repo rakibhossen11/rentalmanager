@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/middleware/auth';
-import { connectToDatabase, ObjectId } from '@/lib/mongodb';
+import { requireAdmin } from '@/app/lib/middleware/auth';
+import { connectToDatabase, ObjectId } from '@/app/lib/mongodb';
 
 // Update user role (Admin only)
 export async function PUT(request, { params }) {

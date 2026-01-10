@@ -4,7 +4,7 @@
 import { Inter } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
 import AuthProvider from '../components/AuthProvider';
-import SideNav from '../components/SideNav';
+import SideNav from './components/ConsumerNav';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 

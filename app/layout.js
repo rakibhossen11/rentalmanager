@@ -4,7 +4,6 @@ import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import AuthProvider from './components/AuthProvider';
-import SideNav from './components/SideNav';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -21,7 +20,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-          <div className="flex min-h-screen bg-gray-50">
+          <div className="mx-[40px] shadow flex min-h-screen bg-gray-500 border-x-2">
             {/* <SideNav /> */}
             {/* <Navbar /> */}
             <main className="flex-1">
